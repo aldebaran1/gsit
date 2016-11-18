@@ -118,24 +118,7 @@ def readRinexObsHdf(hdf5_file_name):
     
     data = read_hdf(hdf5_file_name,key='data')
     
-    return header, data, list(svset), obstimes
-    
-def readRinexObsHdfData(hdf5_file_name):
-    """
-    Function readObsHdf opens the input .h5 file with raw data structured in
-    hdf file. Besides restructured observation data in pandas.panel4D, the 
-    function finds the original obseravarion rinex data with .15o extension,
-    which has to be in the same folder af hdf file, and reads the header of it.
-    Function's output is thus, header data structured as dictionary and 
-    observarion data structured as pandas.panel4D type.
-    Code is resturctured after Greg Starr's rinexObs function
-    """
-    
-    data = read_hdf(hdf5_file_name,key='data')
-    
-    return data
-        
-        
+    return header, data, list(svset), obstimes           
 
 def scan(lines):
     """

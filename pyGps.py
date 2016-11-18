@@ -7,44 +7,140 @@ Created on Sat Oct 15 17:28:01 2016
 
 import numpy as np
 import math
-import RinexParser
-import mahaliPlot
+import pyRinex
+#import mahaliPlot
 from pandas import DataFrame
 from pymap3d.coordconv3d import ecef2geodetic,ecef2aer,aer2geodetic
 
-def getPRNVerticalTEC(sTEC, navdata, obstimes, sv, header, el_filter = False):
-    """
-    """
-    xyz = getSatXYZ(navdata, sv, obstimes)
-    receiver_position = np.asarray(header['APPROX POSITION XYZ'], float)[:, None]
-    rlat, rlon, ralt = ecef2geodetic(receiver_position)
-    az,el,r = ecef2aer(xyz[:,0],xyz[:,1],xyz[:,2],rlat,rlon,ralt)
+f1 = 1575420000
+f2 = 1227600000
+f5 = 1176450000
+c0 = 3E8
 
-    Re = 6371.0
-    h1 = 400.0
-    rc1 = (Re / (Re+h1))
-    #print(rc1)
-    F = []
-    vTEC1 = []
-
-    for i in range(len(el)):
-        if (el_filter == True):    
-            if ((el[i] < 10) or (math.isnan(sTEC[i]))):
-                vTEC1.append(np.nan)   
-                F.append(np.nan)
-            else:
-                F.append(math.cos(math.asin(rc1*math.sin(math.radians(90-el[i])))))
-                vTEC1.append((math.cos(math.asin(rc1*math.cos(math.radians(el[i]))))) * sTEC[i]) 
-        else:
-            if (math.isnan(sTEC[i])):
-                vTEC1.append(np.nan)   
-                F.append(np.nan)
-            else:
-                F.append(math.cos(math.asin(rc1*math.sin(math.radians(90-el[i])))))
-                vTEC1.append((math.cos(math.asin(rc1*math.cos(math.radians(el[i]))))) * sTEC[i]) 
-    return vTEC1, el, F
+def getPRNSlantTEC(P1, P2, units='m'):
+    """
+    Sebsatijan Mrak
+    Function returns slant TEC in TECU units. Input data are PRN information
+    at two frequences, where f1 and f2 are difined as global variables. It assumes,
+    that you use L1 and L2 frquencies. In case of different GNSS constellation or
+    use of L5, correct the indexes. 
+    Default config. assumes PRN distance in meters [m], otherwise, fulfill the 
+    function parameter 'unit' to correct the units.
+    Output units are by default in meters.
+    """     
+    if units == 'm':
+        sTEC = ((1/40.3) * (( pow(f2, 2) * pow(f1, 2) ) / 
+                (pow(f2, 2) - pow(f1, 2))) * (P1 - P2)) / pow(10,16)
+    elif units == 'rad':
+        sTEC = ((c0/(40.3*2*np.pi)) * (( pow(f2, 2) * pow(f1, 2) ) / 
+                (pow(f2, 2) - pow(f1, 2))) * (P1/f1 - P2/f2)) / pow(10,16)
+            
+    elif units == 'cycle':
+        sTEC = ((c0/(40.3)) * (( pow(f2, 2) * pow(f1, 2) ) / 
+                (pow(f2, 2) - pow(f1, 2))) * (P1/f1 - P2/f2)) / pow(10,16)        
+        
+    return sTEC
     
+def getPSlantTEC(L1, L2, units = 'cycle'):
+    """
+    Sebsatijan Mrak
+    Function returns slant TEC in TECU units. Input data are phase information
+    at two frequences, where f1 and f2 are difined as global variables. It assumes,
+    that you use L1 and L2 frquencies. In case of different GNSS constellation or
+    use of L5, correct the indexes. 
+    Default config. assumes phase information in cycles [cycle], otherwise, 
+    fulfill the function parameter 'unit' to correct the units. 
+    Output units are by default in meters.
+    
+    Use only if there is no cycle slips in raw phase file!
+    """
+    if units == 'cycle':
+        sTEC = ((c0/40.3) * (( pow(f2, 2) * pow(f1, 2) ) / 
+                (pow(f2, 2) - pow(f1, 2))) * (L1/f1 - L2/f2)) / pow(10,16)
+    elif units == 'rad':
+        sTEC = ((c0/(40.3*2*np.pi)) * (( pow(f2, 2) * pow(f1, 2) ) / 
+                (pow(f2, 2) - pow(f1, 2))) * (L1/f1 - L2/f2)) / pow(10,16)
+    elif units == 'm':
+        sTEC = ((1/40.3) * (( pow(f2, 2) * pow(f1, 2) ) / 
+                (pow(f2, 2) - pow(f1, 2))) * (L1 - L2)) / pow(10,16)
+        
+    return sTEC
+
+def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False):
+    """
+    Greg Starr
+    Function returns a phase corrected TEC, following a paper by Coco el al:
+    'Effect of GPS system biases on differential group delay measurements'.
+    Imputs are raw data numpy arrays at two frequencies. Algorithm corrects
+    the value of a phase TEC with a difference between mean values of a PRN and
+    phase TEC, recpectively. This correction is performed on intervals between
+    cycle slips. If the length of consequitive interval is 1, then NaN is inserted
+    at this place.    
+    """
+    #Get intervals between nans and/or cycle slips    
+    idx, ranges = getIntervals(L1, L2, P1, P2)
+    tec_p = np.array([])
+    err_p = np.array([])
+    for r in ranges:
+        if (r[1] - r[0]) > 1:
+            range_tec = ((f1**2 * f2**2) / (f1**2 - f2**2)) * (P2[r[0] : r[1]] - 
+                                          P1[r[0] : r[1]]) /40.3 / pow(10, 16)
+            phase_tec = ((f1**2 * f2**2) / (f1**2 - f2**2)) * (c0/40.3) * \
+                         (L1[r[0] : r[1]] / f1 - L2[r[0] : r[1]] / f2) / pow(10, 16)
+            
+            tec_difference = np.array(sorted(phase_tec-range_tec))
+            
+            tec_difference = tec_difference[np.isfinite(tec_difference)]
+            median_difference = tec_difference[int(len(tec_difference)/2)]
+            difference_width = tec_difference[int(len(tec_difference)*.75)]-tec_difference[int(len(tec_difference)*.25)]
+            median_error = difference_width/np.sqrt(len(tec_difference))
+            tec = phase_tec - median_difference
+            tec_p = np.hstack((tec_p, np.array(tec)))
+            err_p = np.hstack((err_p, np.array(median_error)))            
+        else:
+            tec_p = np.hstack((tec_p, np.nan))
+            err_p = np.hstack((err_p, np.nan))
+    if (tec_err):
+        return tec_p, err_p
+    else:
+        return tec_p
+        
+def getIntervals(L1, L2, P1, P2, maxgap=1,maxjump=1.5):
+    """
+    Greg Starr
+    scans through the phase tec of a satellite and determines where "good"
+    intervals begin and end
+    inputs:
+        L1, L2, P1, P2 - np arrays of the raw data used to calculate phase corrected
+        TEC. 
+        maxgap - maximum number of nans before starting new interval
+        maxjump - maximum jump in phase TEC before starting new interval
+    output:
+        intervals - list of 2-tuples, beginning and end of each "good" interval
+                    as a Pandas/numpy
+    """
+    
+    r = np.array(range(len(P1)))
+    idx = np.isfinite(L1) & np.isfinite(L2) & np.isfinite(P1) & np.isfinite(P2)
+    r = r[idx]
+    intervals=[]
+    if len(r)==0:
+        return intervals
+    phase_tec=2.85E9*(L1/f1-L2/f2)
+    beginning=r[0]
+    last=r[0]
+    for i in r[1:]:
+        if i-last>maxgap or abs(phase_tec[i]-phase_tec[last])>maxjump:
+            intervals.append((beginning,last))
+            beginning=i
+        last=i
+        if i==r[-1]:
+            intervals.append((beginning,last))
+    return idx, intervals
+
 def getVerticalTEC(tec, el, h):
+    """
+    """
     Re = 6371.0
     rc1 = (Re / (Re + h))
     vTEC =[]
@@ -62,8 +158,8 @@ def getVerticalTEC(tec, el, h):
     return np.array(vTEC), np.array(F)
     
 def getSatelliteLatLon(sv):
-    navdata = RinexParser.readRinexNav('/home/smrak/Documents/TheMahali/gnss/gps/brdc2800.15n')
-    header, data, svset, obstimes =  RinexParser.readRinexObsHdf('/home/smrak/Documents/TheMahali/rinex/mah22800.h5')
+    navdata = pyRinex.readRinexNav('/home/smrak/Documents/TheMahali/gnss/gps/brdc2800.15n')
+    header, data, svset, obstimes =  pyRinex.readRinexObsHdf('/home/smrak/Documents/TheMahali/rinex/mah22800.h5')
     xyz = getSatXYZ(navdata, sv, obstimes)
     lat, lon, alt = ecef2geodetic(xyz)
     
@@ -109,70 +205,6 @@ def getAllIonosphericPP(data, navdata, obstimes, sv_list, header, ipp_alt):
     
     return lonPP, latPP    
 
-def getPRNSlantTEC(data, sv):
-    """
-    """
-    
-    f1 = 1575420000
-    f2 = 1227600000
-    
-    P1 = np.array(data['C1', sv, :, 0])
-    P2 = np.array(data['P2', sv, :, 0])
-    sTEC = ((1/40.3) * (( pow(f2, 2) * pow(f1, 2) ) / 
-        (pow(f2, 2) - pow(f1, 2))) * (P1 - P2)) / pow(10,16)
-        
-    return sTEC
-    
-def getPRNSlantTEC2(rx, sv):
-    """
-    """
-    folder = '/home/smrak/Documents/TheMahali/rinex/'
-    f1 = 1575420000
-    f2 = 1227600000
-    data = RinexParser.readRinexObsHdfData(folder+rx)
-    P1 = np.array(data['C1', sv, :, 0])
-    P2 = np.array(data['P2', sv, :, 0])
-    #L1 = np.array(data['L1', sv, :, 0])
-    #L2 = np.array(data['L2', sv, :, 0])
-    sTEC = ((1/40.3) * (( pow(f2, 2) * pow(f1, 2) ) / 
-        (pow(f2, 2) - pow(f1, 2))) * (P1 - P2)) / pow(10,16)
-
-        
-    return sTEC
-    
-def getPSlantTEC(rx, sv):
-    """
-    """
-    folder = '/home/smrak/Documents/TheMahali/rinex/'
-    f1 = 1575420000
-    f2 = 1227600000
-    c = 3.0E8
-    data = RinexParser.readRinexObsHdfData(folder+rx)
-    L1 = np.array(data['L1', sv, :, 'data'])
-    L2 = np.array(data['L2', sv, :, 'data'])
-    lol1 = np.array(np.nan_to_num(data['L1', sv, :, 'lli']))
-    lol2 = np.array(np.nan_to_num(data['L2', sv, :, 'lli']))
-    print sum(lol1), sum(np.where(lol2 == 1))
-    #L1 = cycleSlipGPS(L1)
-    #L2 = cycleSlipGPS(L2)
-    #sTEC = 2.85E9/c * (L1/f1 - L2/f2)
-    #L1 = np.array(data['L1', sv, :, 0])
-    #L2 = np.array(data['L2', sv, :, 0])
-    sTEC = ((1/40.3) * (( pow(f2, 2) * pow(f1, 2) ) / 
-           (pow(f2, 2) - pow(f1, 2))) * (L1/f1 - L2/f2)) / pow(10,16) * c
-
-        
-    return sTEC
-    
-def getDataTime(rx, gps):
-    """
-    """
-    folder = '/home/smrak/Documents/TheMahali/rinex/'
-    data = RinexParser.readRinexObsHdfData(folder+rx)
-    t = data.major_axis
-    
-    return t
-
 def solveIter(mu,e):
     """__solvIter returns an iterative solution for Ek
     Mk = Ek - e sin(Ek)
@@ -201,6 +233,7 @@ def solveIter(mu,e):
 
 def getSatXYZ(nav,sv,times):
     """
+    Greg Starr
     getSatelliteXYZ returns the satellite XYZ as a tuple at the inputted times
     inputs are rinex navigation data, satellite number, and list of times
     Output: tuple of satellite position in ECEF coordinates (X,Y,Z)
@@ -347,6 +380,6 @@ def cycleSlipGPS(data):
     else:
         lll1 = data
     
-    mahaliPlot.plot(l_diff_31)
+    #mahaliPlot.plot(l_diff_31)
     
     return lll1
