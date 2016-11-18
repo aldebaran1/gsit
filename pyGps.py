@@ -138,8 +138,19 @@ def getIntervals(L1, L2, P1, P2, maxgap=1,maxjump=1.5):
             intervals.append((beginning,last))
     return idx, intervals
 
-def getVerticalTEC(tec, el, h):
+def getVerticalTEC(tec, el, h, F=False):
     """
+    Sebastijan Mrak
+    Function takes the slant TEC numpy array, elevation as numpt array and an
+    altitude 'h', to calculate the vertival TEC (vTEC). To map the sTEc to vTEC,
+    we follow the thin shell approximation, described by Stefan Shaer in his
+    desseration and is also illustrated in Brunini and Azpilicueta:
+    'GPS slant total electron content accuracy using the single layer model 
+    under different geomagnetic regions and ionospheric conditions'.
+    Mapping function is defined as:
+    
+    F(el) = cos (arcsin (Re / (Re+h) * cos(el)))
+    vTEC = sTEC * F(el)
     """
     Re = 6371.0
     rc1 = (Re / (Re + h))
@@ -154,16 +165,25 @@ def getVerticalTEC(tec, el, h):
             f = math.cos(math.asin(rc1*math.cos(math.radians(el[i]))))
             vTEC.append(f * tec[i])
             F.append(f)
-        
-    return np.array(vTEC), np.array(F)
     
-def getSatelliteLatLon(sv):
-    navdata = pyRinex.readRinexNav('/home/smrak/Documents/TheMahali/gnss/gps/brdc2800.15n')
+    if F:        
+        return np.array(vTEC), np.array(F)
+    else:
+        return np.array(vTEC)
+    
+def getSatellitePosition(sv, navfname, rx_xyz, obstimes):
+    """
+    Function 
+    """
+    navdata = pyRinex.readRinexNav(navfname)
     header, data, svset, obstimes =  pyRinex.readRinexObsHdf('/home/smrak/Documents/TheMahali/rinex/mah22800.h5')
-    xyz = getSatXYZ(navdata, sv, obstimes)
-    lat, lon, alt = ecef2geodetic(xyz)
     
-    return lat, lon
+    rec_position_ecef = np.asarray(header['APPROX POSITION XYZ'], float)[:, None]    
+    rec_lat, rec_lon, rec_alt = ecef2geodetic(rec_position_ecef)    
+    xyz = getSatXYZ(navdata, sv, obstimes)
+    el, az, r = ecef2aer(xyz[:,0],xyz[:,1],xyz[:,2],rec_lat, rec_lon, rec_alt)
+    
+    return el, az, r
     
 def getIonosphericPP(data, navdata, obstimes, sv, header, ipp_alt):
     """

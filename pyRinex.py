@@ -14,6 +14,28 @@ from pandas.io.pytables import read_hdf
 from os.path import splitext,expanduser
 from io import BytesIO
 from os.path import getsize
+import yaml
+import glob
+
+def writeRinexObsHeader2yaml(folder):
+    """
+    Sebastijan Mrak
+    Function takes the folder with Rinex Obseravation files and finds all files
+    with '.15o' extension. Than it iterates through all filaes to find header and
+    save it to yaml file with the same name.
+    """
+    ext = '*.15o'
+    flist = sorted(glob.glob(folder+ext))        
+    print (flist)
+    for doc in flist:
+        #print doc
+        header = readRinexObsHeader(doc)
+        filename = splitext(expanduser(doc))
+        yaml_fn = filename[0] + '.yaml'
+        print (yaml_fn)
+        with open(yaml_fn, 'w') as outfile:
+            yaml.dump(header, outfile, default_flow_style=True) 
+        
 
 def readRinexNav(rinex_nav_filename):
     """
@@ -94,7 +116,15 @@ def writeRinexObs2Hdf(rinex_obs_file_name):
     h5fn = filename + '.h5'
     data.to_hdf(h5fn,key='data',mode='w',format='table')
     print('Write succesfull. \n {} is a RINEX {} file, {} kB.'.format(
-            rinex_obs_file_name,version,getsize(rinex_obs_file_name)/1000.0))    
+            rinex_obs_file_name,version,getsize(rinex_obs_file_name)/1000.0))  
+            
+def readRinexObsHeader(obs_file_name):
+    with open(obs_file_name, 'r') as f:
+        lines = f.read().splitlines(True)
+        lines.append('')
+        header,version,headlines,obstimes,sats,svset = scan(lines)
+        
+    return header
     
 def readRinexObsHdf(hdf5_file_name):
     """
