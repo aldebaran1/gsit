@@ -24,6 +24,7 @@ def writeRinexObsHeader2yaml(folder):
     with '.15o' extension. Than it iterates through all filaes to find header and
     save it to yaml file with the same name.
     """
+    
     ext = '*.15o'
     flist = sorted(glob.glob(folder+ext))        
     for doc in flist:
