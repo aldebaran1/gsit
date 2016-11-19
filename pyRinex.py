@@ -26,13 +26,11 @@ def writeRinexObsHeader2yaml(folder):
     """
     ext = '*.15o'
     flist = sorted(glob.glob(folder+ext))        
-    print (flist)
     for doc in flist:
         #print doc
         header = readRinexObsHeader(doc)
         filename = splitext(expanduser(doc))
         yaml_fn = filename[0] + '.yaml'
-        print (yaml_fn)
         with open(yaml_fn, 'w') as outfile:
             yaml.dump(header, outfile, default_flow_style=True) 
         

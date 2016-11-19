@@ -171,19 +171,20 @@ def getVerticalTEC(tec, el, h, F=False):
     else:
         return np.array(vTEC)
     
-def getSatellitePosition(sv, navfname, rx_xyz, obstimes):
+def getSatellitePosition(sv, rx_xyz, obstimes):
     """
-    Function 
-    """
-    navdata = pyRinex.readRinexNav(navfname)
-    header, data, svset, obstimes =  pyRinex.readRinexObsHdf('/home/smrak/Documents/TheMahali/rinex/mah22800.h5')
-    
-    rec_position_ecef = np.asarray(header['APPROX POSITION XYZ'], float)[:, None]    
-    rec_lat, rec_lon, rec_alt = ecef2geodetic(rec_position_ecef)    
+    Sebastijan Mrak
+    Function returns satellite position in AER and LLA coordinates for a chosen
+    satellite vehicle and obseravtion times. Rx_xyz is a receiver position in 
+    ECEF CS, as an np. array. Obstimes gat to be in format pandas.to_datetime
+    """   
+    navfn = '/home/smrak/Documents/TheMahali/gnss/gps/brdc2800.15n'
+    navdata = pyRinex.readRinexNav(navfn)
+    rec_lat, rec_lon, rec_alt = ecef2geodetic(rx_xyz[0], rx_xyz[1], rx_xyz[2])    
     xyz = getSatXYZ(navdata, sv, obstimes)
-    el, az, r = ecef2aer(xyz[:,0],xyz[:,1],xyz[:,2],rec_lat, rec_lon, rec_alt)
-    
-    return el, az, r
+    az, el, r = ecef2aer(xyz[:,0],xyz[:,1],xyz[:,2],rec_lat, rec_lon, rec_alt)
+    lat, lon, alt = ecef2geodetic(xyz[:,0],xyz[:,1],xyz[:,2])
+    return [az, el, r], [lat, lon, alt]
     
 def getIonosphericPP(data, navdata, obstimes, sv, header, ipp_alt):
     """
@@ -251,7 +252,7 @@ def solveIter(mu,e):
         
     return(bestGuess)
 
-def getSatXYZ(nav,sv,times):
+def getSatXYZ(nav, sv, times):
     """
     Greg Starr
     getSatelliteXYZ returns the satellite XYZ as a tuple at the inputted times
