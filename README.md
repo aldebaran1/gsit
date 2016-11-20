@@ -4,7 +4,7 @@
 This is a Python software framework for ionospheric community, which includes data processing processing tools for GNSS, optical and magnetometer sensors. 
 
 ### GNSS
-`pyGps` GNSS data processing tool includes:
+`pyGps.py` GNSS data processing tool includes:
 - dual frequency pseudo-range TEC
 - dual frequency phase TEC
 - dual frequency phase corrected TEC
