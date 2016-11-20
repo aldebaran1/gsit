@@ -2,13 +2,13 @@
 """
 Created on Sat Oct 15 17:28:01 2016
 
-@author: smrak
+@author: Sebasijan Mrak
+smrak@bu.edu
 """
 
 import numpy as np
 import math
 import pyRinex
-#import mahaliPlot
 from pandas import DataFrame
 from pymap3d.coordconv3d import ecef2geodetic,ecef2aer,aer2geodetic
 
@@ -184,14 +184,13 @@ def getROTI(tec, length):
     
     return np.array(roti)
     
-def getSatellitePosition(rx_xyz, sv, obstimes, cs = 'wsg84'):
+def getSatellitePosition(rx_xyz, sv, obstimes, navfn, cs = 'wsg84'):
     """
     Sebastijan Mrak
     Function returns satellite position in AER and LLA coordinates for a chosen
     satellite vehicle and obseravtion times. Rx_xyz is a receiver position in 
     ECEF CS, as an np. array. Obstimes gat to be in format pandas.to_datetime
     """   
-    navfn = '/home/smrak/Documents/TheMahali/gnss/gps/brdc2800.15n'
     navdata = pyRinex.readRinexNav(navfn)
     rec_lat, rec_lon, rec_alt = ecef2geodetic(rx_xyz[0], rx_xyz[1], rx_xyz[2])    
     xyz = getSatXYZ(navdata, sv, obstimes)
@@ -205,16 +204,22 @@ def getSatellitePosition(rx_xyz, sv, obstimes, cs = 'wsg84'):
         print ('Wrong frame of reference. Type "wsg84" or "aer".')
         return 0;
     
-def getIonosphericPP(data, navdata, obstimes, sv, header, ipp_alt):
+def getIonosphericPiercingPoints(rx_xyz, sv, obstimes, ipp_alt, navfn):
     """
+    Sebastijan Mrak
+    Function returns a list of Ionospheric Piersing Point (IPP) trajectory in WSG84
+    coordinate system (CS). Function takes as parameter a receiver location in 
+    ECEF CS, satellite number, times ob observation and desired altitude of a IPP
+    trajectory. You also have to specify a full path to th navigation data file.
     """
+    
+    navdata = pyRinex.readRinexNav(navfn)
     xyz = getSatXYZ(navdata, sv, obstimes)
-    rec_position_ecef = np.asarray(header['APPROX POSITION XYZ'], float)[:, None]
-    rec_lat, rec_lon, rec_alt = ecef2geodetic(rec_position_ecef)
+    rec_lat, rec_lon, rec_alt = ecef2geodetic(rx_xyz[0], rx_xyz[1], rx_xyz[2])
     az,el,r = ecef2aer(xyz[:,0],xyz[:,1],xyz[:,2],rec_lat, rec_lon, rec_alt)
     r_new = []    
     for i in range(len(el)):
-        if el[i] > 10:
+        if el[i] > 0:
             r_new.append(ipp_alt / math.sin(math.radians(el[i])))
         else:
             r_new.append(np.nan)
