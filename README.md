@@ -8,7 +8,7 @@ This is a Python software framework for ionospheric community, which includes da
 - dual frequency pseudo-range TEC
 - dual frequency phase TEC
 - dual frequency phase corrected TEC
-- rate of TEC (ROTI)
+- rate of TEC Index (ROTI)
 - vertical TEC with respect to thin shell approximation
 - Ionospheric Piercing Point (IPP)
 - Satellite position in AER and WGS84
@@ -25,3 +25,7 @@ Optical data tool includes:
 
 ### Space weather data
 `imf.py` Reads and plots space weather data from NASA Goddard space Flight Center OMNIWeb page
+
+### Data presentation
+`plotSatellite.py` Plots the satellite's trajectory for given obseravtion time interval for one or list of given satellites. In plots the trajectory on the Basemap object which is an satellite view projection of the Earth for a given width [m], height[m] and venter point [lon, lat]. 
+
