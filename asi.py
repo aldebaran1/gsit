@@ -166,9 +166,14 @@ def find_nearest(array,value):
     else:
         return array[idx]
 
-def openASI():
-    fn = 'ASI_rec8_prn23.csv'
-    t, data = np.loadtxt(folder+fn,dtype='S',unpack=True,delimiter=',')
-    data = data.astype(float)
-    #print data
-    #mahaliPlot.plot(data)
+def readASIfromCSV(fname):
+    """
+    Function reads given CSV file, parse it to intensity and time and converts
+    types from string to float and np.dateime64 respectively.
+    """
+    t, asi = np.loadtxt(fname,dtype='S',unpack=True,delimiter=',')
+    t = t.astype(np.datetime64)
+    asi = asi.astype(float)
+    
+    return t, asi
+    
