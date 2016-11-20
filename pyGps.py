@@ -170,8 +170,21 @@ def getVerticalTEC(tec, el, h, F=False):
         return np.array(vTEC), np.array(F)
     else:
         return np.array(vTEC)
+        
+def getROTI(tec, length):
+    """
+    Sebastijan Mrak
+    getROTI returns the rate of TEC Index calculated as the standard deviation 
+    of the provided TEC on the moving window of the length 'length'. It returns 
+    the ROTI as a numpy array data type.
+    """
+    roti = []    
+    for i in range(len(tec)-length):
+        roti.append(np.std(tec[i:i+length]))
     
-def getSatellitePosition(sv, rx_xyz, obstimes):
+    return np.array(roti)
+    
+def getSatellitePosition(rx_xyz, sv, obstimes, cs = 'wsg84'):
     """
     Sebastijan Mrak
     Function returns satellite position in AER and LLA coordinates for a chosen
@@ -184,7 +197,13 @@ def getSatellitePosition(sv, rx_xyz, obstimes):
     xyz = getSatXYZ(navdata, sv, obstimes)
     az, el, r = ecef2aer(xyz[:,0],xyz[:,1],xyz[:,2],rec_lat, rec_lon, rec_alt)
     lat, lon, alt = ecef2geodetic(xyz[:,0],xyz[:,1],xyz[:,2])
-    return [az, el, r], [lat, lon, alt]
+    if cs == 'wsg84':
+        return [lat, lon, alt]
+    elif cs == 'aer':
+        return [az, el, r]
+    else:
+        print ('Wrong frame of reference. Type "wsg84" or "aer".')
+        return 0;
     
 def getIonosphericPP(data, navdata, obstimes, sv, header, ipp_alt):
     """
