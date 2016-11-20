@@ -2,7 +2,8 @@
 """
 Created on Sun Nov 20 11:43:32 2016
 
-@author: smrak
+@author: Sebastijan Mrak
+smrak@bu.edu
 """
 
 from mpl_toolkits.basemap import Basemap
@@ -10,12 +11,22 @@ from mpl_toolkits.basemap import Basemap
 import pyGps
 import matplotlib.pyplot as plt
 
-def plotSatelliteGlobalMap(rx, sv, obstimes, color = 'r', lw = 3, center=[-130., 50]):
+def plotSatelliteGlobalMap(rx, sv, obstimes, color = 'r', lw = 3, 
+                           newfigure = False, center=[-130., 50], 
+                            width = 10000000, height = 7000000):
+    """
+    plotSAtelliteGlobalMap renders a global map with a satellite view projection,
+    and put on the map a projection of a stallite trajectory in lat-lon format.
+    There is option to put more satellites as a list of satellites. 
+    Size of the global map and the center of projection are optional parameters.
+    Center is in the format [lon, lat], width and height are in meters.
+    """
     #Add optional marks on plot
     all_sky_location = [-147.43, 65.12] 
-    
+    if newfigure:
+        plt.figure()
     #Create a Basemap object:
-    m = Basemap(width=10000000, height=7000000, projection='aeqd',
+    m = Basemap(width=width, height=height, projection='aeqd',
                     resolution='c', lat_0=center[1], lon_0=center[0])
     #Plot parallels and meridians
     parallels = [20., 40., 60.]
@@ -23,6 +34,7 @@ def plotSatelliteGlobalMap(rx, sv, obstimes, color = 'r', lw = 3, center=[-130.,
     meridians = [-50, -90, -120, -150., -180., 150.]
     m.drawmeridians(meridians,labels=[True,True,False,True], linewidth=2)
     m.bluemarble()
+    
     
     if isinstance(sv, int):
         sv_llt = pyGps.getSatellitePosition(rx, sv, obstimes, cs='wsg84')
