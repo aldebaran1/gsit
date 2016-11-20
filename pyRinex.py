@@ -294,9 +294,3 @@ def processBlocks(lines,header,obstimes,svset,headlines,sats):
     blocks = blocks[:,list(svset),:,:]
     
     return blocks
-    
-if __name__ == '__main__':
-    #h, data = rinexobs('/home/smrak/Documents/TheMahali/rinex/ma132800.15o',
-    #            '/home/smrak/Documents/TheMahali/rinex/ma132800.h5')
-    readRinexObsHdf('/home/smrak/Documents/TheMahali/rinex/ma132800.h5')
-    #print (data['C1', 1, :, 0])
