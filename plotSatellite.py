@@ -11,13 +11,15 @@ from mpl_toolkits.basemap import Basemap
 import pyGps
 import matplotlib.pyplot as plt
 
+navfn = '/home/smrak/Documents/TheMahali/gnss/gps/brdc2800.15n'
+
 def plotIPPGlobalMap(ipp_lat, ipp_lon, color = 'r', lw = 3, 
                            newfigure = False, center=[-130., 50], 
                             width = 10000000, height = 7000000):
     """
-    plotSAtelliteGlobalMap renders a global map with a satellite view projection,
-    and put on the map a projection of a stallite trajectory in lat-lon format.
-    There is option to put more satellites as a list of satellites. 
+    plotSAtelliteGlobalMap renders a global map with a Ionospheric piersing point
+    projection, and put on the map a projection of a stallite trajectory in 
+    lat-lon format. There is option to put more satellites as a list of satellites. 
     Size of the global map and the center of projection are optional parameters.
     Center is in the format [lon, lat], width and height are in meters.
     """
@@ -68,7 +70,7 @@ def plotSatelliteGlobalMap(rx, sv, obstimes, color = 'r', lw = 3,
     
     
     if isinstance(sv, int):
-        sv_llt = pyGps.getSatellitePosition(rx, sv, obstimes, cs='wsg84')
+        sv_llt = pyGps.getSatellitePosition(rx, sv, obstimes, navfn, cs='wsg84')
         
         asi_x, asi_y = m(all_sky_location[0], all_sky_location[1])
         sat_x, sat_y = m(sv_llt[1], sv_llt[0])
@@ -78,7 +80,8 @@ def plotSatelliteGlobalMap(rx, sv, obstimes, color = 'r', lw = 3,
         asi_x, asi_y = m(all_sky_location[0], all_sky_location[1])
         m.scatter(asi_x, asi_y, marker='*', color='m', s=25)  # plot a blue dot there
         for sat in sv:
-            sv_llt = pyGps.getSatellitePosition(rx, sat, obstimes, cs='wsg84')
+            sv_llt = pyGps.getSatellitePosition(rx, sat, obstimes, navfn, cs='wsg84')
             sat_x, sat_y = m(sv_llt[1], sv_llt[0])
             m.plot(sat_x, sat_y, color, linewidth=lw)
     plt.show()
+    

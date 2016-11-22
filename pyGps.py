@@ -2,8 +2,9 @@
 """
 Created on Sat Oct 15 17:28:01 2016
 
-@author: Sebasijan Mrak
+@author: Sebasijan Mrak, Greg Starr
 smrak@bu.edu
+
 """
 
 import numpy as np
@@ -12,6 +13,7 @@ import pyRinex
 from pandas import DataFrame
 from pymap3d.coordconv3d import ecef2geodetic,ecef2aer,aer2geodetic
 
+#constnats for GPS
 f1 = 1575420000
 f2 = 1227600000
 f5 = 1176450000
@@ -204,13 +206,14 @@ def getSatellitePosition(rx_xyz, sv, obstimes, navfn, cs = 'wsg84'):
         print ('Wrong frame of reference. Type "wsg84" or "aer".')
         return 0;
     
-def getIonosphericPiercingPoints(rx_xyz, sv, obstimes, ipp_alt, navfn):
+def getIonosphericPiercingPoints(rx_xyz, sv, obstimes, ipp_alt, navfn, cs='wsg84'):
     """
     Sebastijan Mrak
     Function returns a list of Ionospheric Piersing Point (IPP) trajectory in WSG84
     coordinate system (CS). Function takes as parameter a receiver location in 
     ECEF CS, satellite number, times ob observation and desired altitude of a IPP
     trajectory. You also have to specify a full path to th navigation data file.
+    It returns IPP location in either WSG84 or AER coordinate system.
     """
     
     navdata = pyRinex.readRinexNav(navfn)
@@ -225,7 +228,12 @@ def getIonosphericPiercingPoints(rx_xyz, sv, obstimes, ipp_alt, navfn):
             r_new.append(np.nan)
     ipp_lat, ipp_lon, ipp_alt = aer2geodetic(az, el, r_new, rec_lat, rec_lon, rec_alt)    
     
-    return ipp_lat, ipp_lon, ipp_alt
+    if (cs == 'wsg84'):
+        return [ipp_lat, ipp_lon, ipp_alt]
+    elif (cs == 'aer'):
+        return [az, el, r]
+    else:
+        print ('Enter either "wsg84" or "aer" as coordinate system. "wsg84" is default one.')
     
 def getAllIonosphericPP(data, navdata, obstimes, sv_list, header, ipp_alt):
     """

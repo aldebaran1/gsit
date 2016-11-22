@@ -205,8 +205,8 @@ def scan(lines):
                 sp=[]
                 for s in range(numsvs):
                      	if s == 12 : 
-				i += 1
-			sp.append(int(lines[i][33+(s%12)*3:35+(s%12)*3]))
+                          i += 1
+                          sp.append(int(lines[i][33+(s%12)*3:35+(s%12)*3]))
                    
                 sats.append(sp)
             else:
