@@ -93,7 +93,7 @@ def polarProjection(ASIfolder, altitude, wl, ix):
     y = rel * np.cos(np.radians(az))
     grid_x, grid_y = np.mgrid[-90:90:3600j, -90:90:3600j]
     grid_z = griddata(np.array([x,y]).T, 
-                      g1.data['image'][:,ix].T, 
+                      g1.data['image'][:,0].T, 
                       (grid_x, grid_y), method='linear')
     plt.figure()
     plt.imshow(grid_z.T, origin='lower')
@@ -133,7 +133,7 @@ def latlonProjection(ASIfolder, altitude, wl, ix):
     im_int = g1.data['image']
     aa = np.reshape(im_int, (N,N))
     plt.figure()
-    plt.imshow(aa.T, origin='lower')
+    plt.imshow(aa, origin='lower')
 
 
     # Read all-sky data
@@ -182,7 +182,76 @@ def latlonProjection(ASIfolder, altitude, wl, ix):
 #    
 #    return kg, np.array(el_array), dt
 
-def getAllSkyIntensity(ASIfolder, IPPlat, IPPlon, obstimes, altitude, wl, cfg_folder = None):
+def getAllskyIntensityAER(ASIfolder, IPPaz, IPPel, altitude, interval, wl, obstimes, cfg_folder=None):
+    """
+    """
+    
+    if cfg_folder == None:
+        cfg_folder = '/home/smrak/Documents/TheMahali/asi_cfg/'
+    wlstr ='*_0'+ wl +'_*.FITS'
+    flist558 = sorted(glob.glob(ASIfolder+wlstr))
+    image_time = []
+    for image in flist558:
+        fn_image = str(image)
+        img_t = str(int(np.floor(float(fn_image[-15:-5]))))
+        image_time.append(datetime(2015, 10, 7, int(img_t[:-4]), 
+                                      int(img_t[-4:-2]), int(img_t[-2:])))
+    image_time = np.array(image_time)
+    # Posix timelim format
+    timelim = str2posix(interval)
+    start = interval[0]+interval[1]
+    stop = interval[2]+interval[3]
+    start = datetime(int(interval[0][-4:]),int(interval[0][:-8]), int(interval[0][-7:-5]), 
+                     int(interval[1][:-6]),int(interval[1][-5:-3]), int(interval[1][-2:]))
+    stop = datetime(int(interval[2][-4:]), int(interval[2][:-8]), int(interval[2][-7:-5]), 
+                     int(interval[3][:-6]),int(interval[3][-5:-3]), int(interval[3][-2:]))
+    #Match image and IPP timestamps
+    dt_match = []                                  
+    for t in image_time:
+        try:
+            dt_match.append(int(np.where(obstimes == t)[0]))
+        except:
+            continue
+    idx = np.where((image_time >= start) & (image_time <= stop) )[0]
+    dt = image_time[idx]
+    #Iopnospheric piercing points
+
+    IPPaz = IPPaz[dt_match]
+    IPPel = IPPel[dt_match]
+    #OK
+    # Read all-sky data                                       
+    g1 = GeoData.GeoData(readAllskyFITS,(flist558,
+                     (cfg_folder+'PKR_DASC_20110112_AZ_10deg.FITS',
+                      cfg_folder+'PKR_DASC_20110112_EL_10deg.FITS'), 
+                      altitude, timelim))
+
+    [r, az, el] = g1.dataloc.T
+    data2D = g1.data['image']
+    cut = 0.5
+    intensity = []
+    for i in range(data2D.shape[1]):
+        data = data2D[:,i]
+        az_idx = np.where((az > IPPaz[i]-cut) & (az < IPPaz[i]+cut))[0]
+        data = data[az_idx]
+        el_tmp = el[az_idx]
+        el_idx = findNearestIdx(el_tmp, IPPel[i])
+        intensity.append(data[el_idx])
+
+        
+    return dt, intensity
+    
+def plotPizzacut(az, el, data):
+    rel = 90-el
+    az = az%360
+    x = -rel * np.sin(np.radians(az))
+    y = rel * np.cos(np.radians(az))
+    grid_x, grid_y = np.mgrid[-90:90:3600j, -90:90:3600j]
+    grid_z = griddata(np.array([x,y]).T, data.T, 
+                      (grid_x, grid_y), method='linear')
+    plt.figure()
+    plt.imshow(grid_z.T, origin='lower')
+        
+def getAllSkyIntensity(ASIfolder, IPPlat, IPPlon, obstimes, altitude, wl, cfg_folder=None):
     """
     Sebastijan Mrak
     function getAllSkyIntensity returns the intensity of light in Rayleighs [R] at
@@ -214,8 +283,10 @@ def getAllSkyIntensity(ASIfolder, IPPlat, IPPlon, obstimes, altitude, wl, cfg_fo
     ipp_lon = IPPlon[dt_match]
     
     # Read all-sky data                                       
-    g1 = GeoData.GeoData(readAllskyFITS,(flist558,(cfg_folder+'PKR_DASC_20110112_AZ_10deg.FITS',
-                                                cfg_folder+'PKR_DASC_20110112_EL_10deg.FITS'), altitude))
+    g1 = GeoData.GeoData(readAllskyFITS,(flist558,
+                         (cfg_folder+'PKR_DASC_20110112_AZ_10deg.FITS',
+                         cfg_folder+'PKR_DASC_20110112_EL_10deg.FITS'), 
+                         altitude))
     xcoords = g1.__changecoords__('WGS84')
     latlim=[xcoords[:,0].min(), xcoords[:,0].max()]
     lonlim=[xcoords[:,1].min(), xcoords[:,1].max()]
@@ -313,6 +384,12 @@ def writeASIntensity2csv(ASIfolder, CSVfname, IPPlat, IPPlon, obstimes, altitude
         
     fwrite.close
     print ("Document has been created.")
+    
+def findNearestIdx(array, value):
+    """
+    """
+    idx = (np.abs(array-value)).argmin()
+    return idx
     
 def findNearestDate(array, value):
     """
