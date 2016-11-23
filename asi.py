@@ -18,7 +18,7 @@ import scipy as sp
 import math
 import matplotlib.pyplot as plt
 
-def getASIKeogram(ASIfolder, azimuth, altitude, interval, wl, cfg_folder=None, obstimes=None):
+def getASIKeogramStatic(ASIfolder, azimuth, altitude, interval, wl, cfg_folder=None, obstimes=None):
     """
     Function returns Keogram vectors - intensity, time_vector and elevation vector.
     It takes parameters for azimuth, altitude, time interval and folder with AS
@@ -67,6 +67,68 @@ def getASIKeogram(ASIfolder, azimuth, altitude, interval, wl, cfg_folder=None, o
         interpolated_int.append(new_int)
     interpolated_int = np.array(interpolated_int)
     return dt, grid_el, interpolated_int
+
+def getASIKeogramIPP(ASIfolder, azimuth, altitude, interval, wl, 
+                     cfg_folder=None, obstimes=None, elevation=None):
+    """
+    Function returns Keogram vectors - intensity, time_vector and elevation vector.
+    It takes parameters for azimuth, altitude, time interval and folder with AS
+    Images. Here an azimuth is a list! 
+    """
+    if cfg_folder == None:
+        cfg_folder = '/home/smrak/Documents/TheMahali/asi_cfg/'
+    
+    timelim = str2posix(interval)
+    
+    start = interval[0]+interval[1]
+    stop = interval[2]+interval[3]
+    start = datetime(int(interval[0][-4:]),int(interval[0][:-8]), int(interval[0][-7:-5]), 
+                     int(interval[1][:-6]),int(interval[1][-5:-3]), int(interval[1][-2:]))
+    stop = datetime(int(interval[2][-4:]), int(interval[2][:-8]), int(interval[2][-7:-5]), 
+                     int(interval[3][:-6]),int(interval[3][-5:-3]), int(interval[3][-2:]))
+    
+
+    wlstr ='*_0'+ wl +'_*.FITS'
+    flist558 = sorted(glob.glob(ASIfolder+wlstr))
+    image_time = []
+    for image in flist558:
+        fn_image = str(image)
+        img_t = str(int(np.floor(float(fn_image[-15:-5]))))
+        image_time.append(datetime(2015, 10, 7, int(img_t[:-4]),int(img_t[-4:-2]), int(img_t[-2:])))
+    image_time = np.array(image_time)
+
+    idx = np.where((image_time >= start) & (image_time <= stop) )[0]
+    dt = image_time[idx]
+    azimuth = azimuth[idx]
+    if elevation is not None:
+        el_out = elevation[idx]
+
+    # Read all-sky data                                       
+    g1 = GeoData.GeoData(readAllskyFITS,(flist558,
+                     (cfg_folder+'PKR_DASC_20110112_AZ_10deg.FITS',
+                      cfg_folder+'PKR_DASC_20110112_EL_10deg.FITS'), 
+                      altitude, timelim))
+
+    [r, az, el] = g1.dataloc.T
+    data = g1.data['image']
+    cut = 1
+    
+    grid_el = np.arange(15, 88.25, 0.25)
+    interpolated_int = []
+    for i in range(data.shape[1]):
+        az1 = np.where((az > azimuth[i]) & (az < azimuth[i]+cut))[0]
+        img_az = az[az1]
+        img_el = el[az1]
+        img_int = data[az1,i]
+        new_int = griddata(img_el, img_int, grid_el)
+        interpolated_int.append(new_int)
+    interpolated_int = np.array(interpolated_int)
+    
+    if elevation is not None:
+        return dt, grid_el, interpolated_int, el_out
+    else:
+        return dt, grid_el, interpolated_int
+
 
 def polarProjection(ASIfolder, altitude, wl, ix):
     """
@@ -133,59 +195,20 @@ def latlonProjection(ASIfolder, altitude, wl, ix):
     im_int = g1.data['image']
     aa = np.reshape(im_int, (N,N))
     plt.figure()
-    plt.imshow(aa, origin='lower')
+    plt.imshow(aa.T, origin='lower')
 
-
-    # Read all-sky data
-    
-
-#    [r,az,el] = g1.dataloc.T
-#    data2D = g1.data['image']
-#    az = az%360
-#    cut = 1
-#    
-#    print (data2D.shape)
-#    if isinstance(azimuth, list):
-#        az_time = []
-#        az_list = []
-#        for i in range(len(dt)):
-#            a = findNearestDate(obstimes, dt[i])
-#            az_time.append(a)
-#            az_list.append(azimuth[i])
-#        print (len(dt), len(az_time))
-#    plt.plot(az_list)
-#    if isinstance(azimuth, int):
-#        az1 = np.where((az > azimuth) & (az < azimuth+cut))[0]
-#        print  (az1.shape)
-#        kg = []
-#        el_array = []
-#        for i in range(data2D.shape[1]):
-#            k = data2D[az1,i]
-#            el_array.append(el[az1])
-#            kg.append(k)        
-#        kg = np.array(kg)
-#
-#    elif isinstance(azimuth, list):
-#        kg = np.array([])
-#        el_array = []
-#        for i in range(data2D.shape[1]):
-#            az1 = np.where((az > azimuth[i]) & (az < azimuth[i]+cut))[0]
-#            
-#            k = data2D[az1,i]
-#            
-#            el_array.append(el[az1[i]])
-#            kg = np.array((kg,k)) 
-#            print  (az1.shape, k.shape, np.array(kg).shape)
-#        kg = np.array(kg)    
-#    else:
-#        print ('Use cut between theta = [0, 360]')
-#    
-#    return kg, np.array(el_array), dt
 
 def getAllskyIntensityAER(ASIfolder, IPPaz, IPPel, altitude, interval, wl, obstimes, cfg_folder=None):
     """
+    Sebastijan Mrak
+    function getAllSkyIntensity returns the intensity of light in Rayleighs [R] at
+    given time at the location of IPP, given as input parameters IPPaz and IPPel.
+    Function reads all the .FITS images and gets the closes pixel to given azimuth 
+    and elevation. This is returned as intensity list. You have to specify the 
+    folder of calibration pictures for azimuth and elevation as 'cfg_folder'. 
+    Besides Intensity, function returns also time array with corresponding timestamps 
+    of the image.
     """
-    
     if cfg_folder == None:
         cfg_folder = '/home/smrak/Documents/TheMahali/asi_cfg/'
     wlstr ='*_0'+ wl +'_*.FITS'
@@ -241,6 +264,9 @@ def getAllskyIntensityAER(ASIfolder, IPPaz, IPPel, altitude, interval, wl, obsti
     return dt, intensity
     
 def plotPizzacut(az, el, data):
+    """
+    Plot the cut of the original AER all-sky image.
+    """
     rel = 90-el
     az = az%360
     x = -rel * np.sin(np.radians(az))
