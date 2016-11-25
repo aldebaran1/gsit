@@ -204,3 +204,44 @@ def plot3Keogram(t1, t2, t3, y1, y2, y3, kg1, kg2, kg3, title1=None,
     ax1.xaxis.set(major_formatter=formatter)
     fig.tight_layout()
     plt.show()
+    
+def plotIntensity(t, y, y2=None, y3=None, t2=None, t3=None,
+                  ylim=None, xlim=None, ytick=None, xtick=None, 
+                  title=None, xlabel=None, ylabel=None, label1=None, label2=None,
+                  label3=None, legend=None, color1='b', color2='g', color3='r'):
+    """
+    Sebastijan Mrak
+    function plotIntensity plots up to 3 datasets on signular figure. X-axis is meant
+    to be a time variable in datatime.datatime format, y-axis is an intensity of the
+    aurora. Function also offers additional paramters to enrich the figure.
+    """
+    formatter = mdates.DateFormatter('%H:%M')
+    fig = plt.figure()    
+    if (t2 is not None) and (y2 is not None) and (t3 is None):
+        plt.plot(t, y, color1, label=label1)
+        plt.plot(t2, y2, color2, label=label2)
+    elif (t3 is not None) and (y3 is not None):
+        plt.plot(t, y, color1, label=label1)
+        plt.plot(t2, y2, color2, label=label2)
+        plt.plot(t3, y3, color3, label=label3)
+    else:
+        plt.plot(t, y, color1, label=label1)
+    if legend is not None:
+        plt.legend()
+    #if ylim is not None:
+    axes = plt.gca()
+    if ylim is not None:
+        axes.set_ylim(ylim)
+    if xlim is not None:
+        axes.set_xlim(xlim)
+    if ylabel is not None:
+        plt.ylabel(ylabel)
+    if xlabel is not None:
+        plt.xlabel(xlabel)
+    if title is not None:
+        plt.title(title)
+    axes.xaxis.set(major_formatter=formatter)
+    plt.show()
+    
+    
+    
