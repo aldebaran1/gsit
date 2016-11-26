@@ -83,6 +83,7 @@ def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False):
     idx, ranges = getIntervals(L1, L2, P1, P2)
     tec_p = np.array([])
     err_p = np.array([])
+    TEC = np.nan * np.zeros(len(L1))
     for r in ranges:
         if (r[1] - r[0]) > 1:
             range_tec = ((f1**2 * f2**2) / (f1**2 - f2**2)) * (P2[r[0] : r[1]] - 
@@ -98,16 +99,18 @@ def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False):
             median_error = difference_width/np.sqrt(len(tec_difference))
             tec = phase_tec - median_difference
             tec_p = np.hstack((tec_p, np.array(tec)))
-            err_p = np.hstack((err_p, np.array(median_error)))            
+            err_p = np.hstack((err_p, np.array(median_error)))
+            TEC[r[0]:r[1]] = tec
         else:
             tec_p = np.hstack((tec_p, np.nan))
             err_p = np.hstack((err_p, np.nan))
     if (tec_err):
         return tec_p, err_p
     else:
-        return tec_p
+        #TEC[idx]=tec_p
+        return tec_p, idx, TEC 
         
-def getIntervals(L1, L2, P1, P2, maxgap=1,maxjump=1.5):
+def getIntervals(L1, L2, P1, P2, maxgap=3,maxjump=1.5):
     """
     Greg Starr
     scans through the phase tec of a satellite and determines where "good"
@@ -140,7 +143,7 @@ def getIntervals(L1, L2, P1, P2, maxgap=1,maxjump=1.5):
             intervals.append((beginning,last))
     return idx, intervals
 
-def getVerticalTEC(tec, el, h, F=False):
+def getVerticalTEC(tec, el, h, Fout=False):
     """
     Sebastijan Mrak
     Function takes the slant TEC numpy array, elevation as numpt array and an
@@ -168,7 +171,7 @@ def getVerticalTEC(tec, el, h, F=False):
             vTEC.append(f * tec[i])
             F.append(f)
     
-    if F:        
+    if Fout:        
         return np.array(vTEC), np.array(F)
     else:
         return np.array(vTEC)
