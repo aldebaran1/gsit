@@ -81,8 +81,7 @@ def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False):
     """
     #Get intervals between nans and/or cycle slips    
     idx, ranges = getIntervals(L1, L2, P1, P2)
-    tec_p = np.array([])
-    err_p = np.array([])
+    ERR = np.nan * np.zeros(len(L1))
     TEC = np.nan * np.zeros(len(L1))
     for r in ranges:
         if (r[1] - r[0]) > 1:
@@ -98,17 +97,13 @@ def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False):
             difference_width = tec_difference[int(len(tec_difference)*.75)]-tec_difference[int(len(tec_difference)*.25)]
             median_error = difference_width/np.sqrt(len(tec_difference))
             tec = phase_tec - median_difference
-            tec_p = np.hstack((tec_p, np.array(tec)))
-            err_p = np.hstack((err_p, np.array(median_error)))
+            ERR[r[0]:r[1]] = median_error
             TEC[r[0]:r[1]] = tec
-        else:
-            tec_p = np.hstack((tec_p, np.nan))
-            err_p = np.hstack((err_p, np.nan))
     if (tec_err):
-        return tec_p, err_p
+        return TEC, ERR
     else:
         #TEC[idx]=tec_p
-        return tec_p, idx, TEC 
+        return TEC 
         
 def getIntervals(L1, L2, P1, P2, maxgap=3,maxjump=1.5):
     """
