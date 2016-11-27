@@ -35,7 +35,6 @@ def getASIKeogramStatic(ASIfolder, azimuth, altitude, interval, wl, cfg_folder=N
                      int(interval[1][:-6]),int(interval[1][-5:-3]), int(interval[1][-2:]))
     stop = datetime(int(interval[2][-4:]), int(interval[2][:-8]), int(interval[2][-7:-5]), 
                      int(interval[3][:-6]),int(interval[3][-5:-3]), int(interval[3][-2:]))
-    
 
     wlstr ='*_0'+ wl +'_*.FITS'
     flist558 = sorted(glob.glob(ASIfolder+wlstr))
@@ -250,19 +249,60 @@ def getAllskyIntensityAER(ASIfolder, IPPaz, IPPel, altitude, interval, wl, obsti
 
     [r, az, el] = g1.dataloc.T
     data2D = g1.data['image']
-    cut = 0.5
-    intensity = []
+    intensity = np.nan * np.zeros(data2D.shape[1])
+
     for i in range(data2D.shape[1]):
         data = data2D[:,i]
-        az_idx = np.where((az > IPPaz[i]-cut) & (az < IPPaz[i]+cut))[0]
-        data = data[az_idx]
-        el_tmp = el[az_idx]
-        el_idx = findNearestIdx(el_tmp, IPPel[i])
-        intensity.append(data[el_idx])
-
-        
+        intensity[i] = findMin(az, el, IPPaz[i], IPPel[i], data)
+#        az_idx = np.where((az > IPPaz[i]-cut) & (az < IPPaz[i]+cut))[0]
+#        data = data[az_idx]
+#        el_tmp = el[az_idx]
+#        az_tmp = az[az_idx]
+#        
+#        el1_idx = np.where((el_tmp > IPPel[i]-cut) & (el_tmp < IPPel[i]+cut))[0]
+#        el1_tmp = el_tmp[el1_idx]
+#        az1_tmp = az_tmp[el1_idx]
+#        az1_idx = findNearestIdx(az1_tmp, IPPaz[i])
+#
+#        el_idx = findNearestIdx(el_tmp, IPPel[i])
+#        intensity.append(data[el_idx])
+#        el1.append(el1_tmp[az1_idx])
+#        az1.append(az1_tmp[az1_idx])
+#        el2.append(el_tmp[el_idx])
+#        az2.append(az_tmp[el_idx])
+#    plt.figure()
+#    plt.plot(dt, IPPaz[0:len(dt)], 'b')
+#    plt.plot(dt, az1, 'r')
+#    plt.plot(dt, az2, 'g')
+#    plt.figure()
+#    plt.plot(dt, IPPel[0:len(dt)], 'b')
+#    plt.plot(dt, el1, 'r')
+#    plt.plot(dt, el2, 'g')
     return dt, intensity
     
+def findMin(az, el, IPPaz, IPPel, data):
+    """
+    """
+    cut = 5
+    idx = np.where((az > IPPaz-cut) & (az < IPPaz+cut))[0]
+    data = data[idx]
+    el = el[idx]
+    az = az[idx]
+    ######################################################
+    idx = np.where((el > IPPel-cut) & (el < IPPel+cut))
+    data = data[idx]
+    el = el[idx]
+    az = az[idx]
+    ######################################################
+    az_diff = abs(az - IPPaz)
+    el_diff = abs(el - IPPel)
+    #####################################################
+    sum_diff = az_diff + el_diff
+    I = np.argmin(sum_diff)
+    
+    return data[I]
+    
+
 def plotPizzacut(az, el, data):
     """
     Plot the cut of the original AER all-sky image.
