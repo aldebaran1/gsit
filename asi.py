@@ -9,7 +9,6 @@ from dateutil import parser
 import pytz
 import numpy as np
 from scipy.interpolate import griddata
-from pandas.io.pytables import read_hdf
 import glob
 from datetime import datetime
 from GeoData import GeoData
@@ -59,7 +58,6 @@ def getASIKeogramStatic(ASIfolder, azimuth, altitude, interval, wl, cfg_folder=N
     grid_el = np.arange(15, 88.25, 0.25)
     interpolated_int = []
     for i in range(g1.data['image'].shape[1]):
-        img_az = az[az1]
         img_el = el[az1]
         img_int = g1.data['image'][az1,i]
         new_int = griddata(img_el, img_int, grid_el)
@@ -116,7 +114,6 @@ def getASIKeogramIPP(ASIfolder, azimuth, altitude, interval, wl,
     interpolated_int = []
     for i in range(data.shape[1]):
         az1 = np.where((az > azimuth[i]) & (az < azimuth[i]+cut))[0]
-        img_az = az[az1]
         img_el = el[az1]
         img_int = data[az1,i]
         new_int = griddata(img_el, img_int, grid_el)
@@ -254,34 +251,13 @@ def getAllskyIntensityAER(ASIfolder, IPPaz, IPPel, altitude, interval, wl, obsti
     for i in range(data2D.shape[1]):
         data = data2D[:,i]
         intensity[i] = findMin(az, el, IPPaz[i], IPPel[i], data)
-#        az_idx = np.where((az > IPPaz[i]-cut) & (az < IPPaz[i]+cut))[0]
-#        data = data[az_idx]
-#        el_tmp = el[az_idx]
-#        az_tmp = az[az_idx]
-#        
-#        el1_idx = np.where((el_tmp > IPPel[i]-cut) & (el_tmp < IPPel[i]+cut))[0]
-#        el1_tmp = el_tmp[el1_idx]
-#        az1_tmp = az_tmp[el1_idx]
-#        az1_idx = findNearestIdx(az1_tmp, IPPaz[i])
-#
-#        el_idx = findNearestIdx(el_tmp, IPPel[i])
-#        intensity.append(data[el_idx])
-#        el1.append(el1_tmp[az1_idx])
-#        az1.append(az1_tmp[az1_idx])
-#        el2.append(el_tmp[el_idx])
-#        az2.append(az_tmp[el_idx])
-#    plt.figure()
-#    plt.plot(dt, IPPaz[0:len(dt)], 'b')
-#    plt.plot(dt, az1, 'r')
-#    plt.plot(dt, az2, 'g')
-#    plt.figure()
-#    plt.plot(dt, IPPel[0:len(dt)], 'b')
-#    plt.plot(dt, el1, 'r')
-#    plt.plot(dt, el2, 'g')
     return dt, intensity
     
 def findMin(az, el, IPPaz, IPPel, data):
     """
+    Sebastijan Mrak
+    Find the best approximation of the line of sight azimuth and elevation on the
+    all-sky image pixel. Return the value/intensity of the pixel
     """
     cut = 5
     idx = np.where((az > IPPaz-cut) & (az < IPPaz+cut))[0]
