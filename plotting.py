@@ -59,8 +59,8 @@ def plot2subplot(t1, t2, y1, y2, t21=None, t22=None, y21=None, y22=None,
             plt.plot(t21, y21, color3, label=label3)
         if (t22 is not None) and (y22 is not None):
             plt.plot(t22, y22, color4, label=label4)
-        ax2.legend(loc='upper center', bbox_to_anchor=(0.5, 1.2),
-                   ncol=3, fancybox=True, shadow=True)
+        ax2.legend(loc=2, bbox_to_anchor=(1.001, 0,0, 1), prop={'size':10}, 
+                   fancybox=True)
     if lli2 is not None:
         idx=np.where((lli2%2)==1)[0]
         lli_range = ax2.get_ylim()
@@ -94,7 +94,7 @@ def plot3subplot(t1, t2, t3, y1, y2, y3, el1=None, t31=None, t32=None, y31=None,
     Sebastijan Mrak
     """
     formatter = mdates.DateFormatter('%H:%M')
-    fig = plt.figure()
+    fig = plt.figure(figsize=(800,600), dpi=150)
     ax1=fig.add_subplot(311)
     plt.pcolormesh(t1, el1, np.nan_to_num(y1.T), cmap=cmap)
     if ylabel1 is not None:
@@ -149,8 +149,8 @@ def plot3subplot(t1, t2, t3, y1, y2, y3, el1=None, t31=None, t32=None, y31=None,
             plt.plot(t31, y31, color3, label=label3)
         if (t32 is not None) and (y32 is not None):
             plt.plot(t32, y32, color4, label=label4)
-        ax3.legend(loc='upper center', bbox_to_anchor=(0.5, 1.3),
-                   ncol=3, fancybox=True, shadow=True)
+        ax3.legend(loc=2, bbox_to_anchor=(1.001, 0,0, 1), prop={'size':10}, 
+                   fancybox=True)
     if lli2 is not None:
         idx=np.where((lli2%2)==1)[0]
         lli_range = ax3.get_ylim()
@@ -194,28 +194,29 @@ def plot4subplot(t1, t2, t3, t4, y1, y2, y3,y4, el1=None, t31=None, t32=None,
                  label1=None, label2=None, label3=None, label4=None, ytick1=[],
                  legend1=None, legend2=None, lli1=None, lm='x', lli3=None,
                  ms=10, colorx1='xr', lli2=None, cmap='viridis', pcolorbar=None, 
-                 cbartick=None, cbartitle=None, ytick2=None, ytick3=None, ytick4=None):
+                 cbartick=None, cbartitle=None, ytick2=None, ytick3=None, ytick4=None,
+                 ipp_elevation=None):
     """
     Sebastijan Mrak
     """
     formatter = mdates.DateFormatter('%H:%M')
-    fig = plt.figure()
+    fig = plt.figure(figsize=(8,6), dpi=150)
+    plt.rc('axes', labelsize=12)
+    plt.rc('xtick', labelsize=8)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=8)  # fontsize of the tick labels
     ax1=fig.add_subplot(411)
     plt.pcolormesh(t1, el1, np.nan_to_num(y1.T), cmap=cmap)
+    if ipp_elevation is not None:
+        plt.plot(t2, ipp_elevation, '-r', lw=2)
     if ylabel1 is not None:
         plt.ylabel(ylabel1)
     if ylim1 is not None:
         ax1.set_ylim(ylim1)
     if title1 is not None:
         plt.title(title1)
-    if pcolorbar is not None:
-        if cbartick is not None:
-            cbar = plt.colorbar(ticks=cbartick)
-            cbar.ax.set_ylabel(cbartitle)
-        else:
-            plt.colorbar()
     if ytick1 is not None:
         ax1.set_yticks(ytick1)
+     
     plt.setp(ax1.get_xticklabels(), visible=False) 
     ############################################################################
     ax2 = fig.add_subplot(412, sharex=ax1)
@@ -257,7 +258,8 @@ def plot4subplot(t1, t2, t3, t4, y1, y2, y3,y4, el1=None, t31=None, t32=None,
             plt.plot(t31, y31, color3, label=label3)
         if (t32 is not None) and (y32 is not None):
             plt.plot(t32, y32, color4, label=label4)
-        ax3.legend(loc=2, bbox_to_anchor=(1.001, 0,0, 1), prop={'size':10}, fancybox=True)
+        ax3.legend(loc=2, bbox_to_anchor=(1.001, 0,0, 1), prop={'size':10}, 
+                   fancybox=True)
     if lli2 is not None:
         idx=np.where((lli2%2)==1)[0]
         lli_range = ax3.get_ylim()
@@ -298,6 +300,12 @@ def plot4subplot(t1, t2, t3, t4, y1, y2, y3,y4, el1=None, t31=None, t32=None,
     fig.subplots_adjust(hspace = .01)
     plt.show()
     
+    #
+    p1 = ax1.get_position()
+    pos1 = p1.get_points()
+    pos1[1][0] = 0.86
+    p1.set_points(pos1)
+    ax1.set_position(p1)
     # find current position [x,y,width,height]
     p1 = ax1.get_position()
     p2 = ax2.get_position()
@@ -317,3 +325,13 @@ def plot4subplot(t1, t2, t3, t4, y1, y2, y3,y4, el1=None, t31=None, t32=None,
     pos4[1][0] = pos1[1][0]
     p4.set_points(pos4)
     ax4.set_position(p4)
+    
+    if pcolorbar is not None:
+        if cbartick is not None:
+            p1 = ax1.get_position()
+            pos1 = p1.get_points()
+            cbaxes = fig.add_axes([0.88, pos1[0][1], 0.01, pos1[1][1]-pos1[0][1]])
+            cbar = plt.colorbar(ticks=cbartick, cax = cbaxes)
+            cbar.ax.set_ylabel(cbartitle)
+        else:
+            plt.colorbar()
