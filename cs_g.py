@@ -1,26 +1,17 @@
-from DataParsing import rinexobs
+#%% Finding and Correcting Cycle Slips
+# Greg Starr, Sebastijan Mrak
+
+#%% Import
 import numpy as np
-from cycle_slip1 import *
-import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
-def newplan(sig):
-    wave = np.array([1,-2,1])
-    idx = np.isfinite(sig)
-    out = np.empty(sig[idx].shape)
-    out = sig[idx]
-    val = []
-    pos = []
-    for i in np.arange(out.shape[0]-3):
-        if abs(out[i])>1.5: # some function of variance
-            val.append(out[i])
-            pos.append(i)
-            out[i:i+3] -= wave*out[i]
-            
-    return np.array(val),np.array(pos),out
-    
-    
+#%% Old Functions
+
 def quickCheck(data):
+    """
+    same as Sebastijan's algorithm, just checks for the 1 or 2 slips-in-a-row
+    pattern within nonmathematical arbitrary bounds
+    """
     l = np.empty(data.shape)
     l[:] = data
     #Get interaval of observation
@@ -33,7 +24,7 @@ def quickCheck(data):
     l_corr = l[idx]
     # Calculate the Higher order differences on the dataset
     N_diff = 3
-    data_diff = nTHDifference(l_corr, N_diff)
+    data_diff = np.hstack(([np.nan]*N_diff,np.diff(l_corr,N_diff)))
     data_round = np.round(data_diff)
     
     cs_ix=[]
@@ -79,6 +70,7 @@ def quickCheck(data):
 
     return l
 
+#%% Simulation
 def slips(slipv):
     dim = slipv.shape[0]
     a = np.zeros((dim,dim))
@@ -100,8 +92,48 @@ def randomSlips(n):
     info = np.vstack((ix,vs))
     a = slips(s)
     return a,info
+    
+#%% New detect/correct ideally based on probability/detection theory
+
+"""
+fix slips in sequence or start from largest slips and work your way down?
+"""
+
+def newplan(sig, window):
+    """
+    passes through input signal "sig" checks if a value belongs to the random
+    noise of the past "window" of samples by using chebyshev probability bound,
+    could be better if noise is assumed Gaussian? frame as more of a detection 
+    problem?
+    """
+    wave = np.array([1,-2,1])
+    idx = np.isfinite(sig)
+    out = np.empty(sig[idx].shape)
+    out = sig[idx].ravel()
+    val = []
+    pos = []
+    last_std = 10 #dummy value
+    last_mean = 0 #dummy value
+    for i in np.arange(window,out.shape[0]-3):
+        if abs(out[i]-last_mean)>10*last_std: # Chebyshev prob <= .01
+            val.append(out[i])
+            pos.append(i)
+            out[i:i+3] -= wave*int(out[i])
+        last_std = np.std(out[i-window:i])
+        last_mean = np.mean(out[i-window:i])
+            
+    return val,pos,out
+    
 
 def removeworst(sig,pos=None,val=None):
+    """
+    assumes the highest absolute value in a data set is a cycle slip, removes
+    it according to the integer scalar A*[1,-2,1] structure, this is meant to 
+    be used repetitively until the original signal satisfies some criteria
+    
+    alternatively if position and value are specified, this just removes the
+    slip according to the same structure
+    """
     out = sig.ravel()
     wave = np.array([1,-2,1])    
     if pos!=None and val!=None:
@@ -115,8 +147,17 @@ def removeworst(sig,pos=None,val=None):
             
     return out,idx,val
     
-def fix(data):
     
+def fix(data):
+    """
+    first full D/C, 
+    
+    1) finds NaNs in data, performs linear interpolation, then 
+    treats those spots as 2 consecutive cycle slips of the same value
+    
+    2) fix overall data until the largest absolute value is less than
+    (arbitrarily) 10
+    """
     receiving_interval = np.where(np.isfinite(data))[0]
     start = receiving_interval[0]
     stop = receiving_interval[-1]
@@ -157,7 +198,20 @@ def fix(data):
 
     return filled_data,fixes
     
+#%% New Plan: Between NaNs First
+"""
+first fix data between NaNs, then connect each interval and correct for slips
+involving NaNs
+"""
+    
 def betweenNan(sig,l):
+    """
+    First between NaN checker, uses change in variance from one window to the
+    next to detect cycle slips, currently not grounded in math, if the variance
+    goes up by 40 then it is considered a slip, I still need to work out what
+    change in variance probabilistically constitutes a cycle slip
+    l is window length
+    """
     if(len(sig)<l): return [],[]
     out = np.empty(len(sig))
     out[:] = sig
@@ -180,6 +234,12 @@ def betweenNan(sig,l):
 
 def fix2(data):
     """
+    half D/C, uses the first between NaNs checker, does not fix NaNs yet,
+    this one needs work because if the variance spikes from one window to the
+    next, has it been caused by the "a" jump or the "-2a" jump? this needs 
+    to check further one window to see which part of the structure the jump
+    in variance is caused by. What of several slips in a row with no NaNs?
+    
     I'm pretty sure this works best on smallish slips, or multiple small slips 
     in a row. Single large jumps fuck with it like in Mah8. Wierd though, because
     it works on Mah2
@@ -191,14 +251,11 @@ def fix2(data):
     
     data_copy = data.ravel()
     data_copy = data_copy[start:stop]
-    not_nan = np.isfinite(data_copy)
-    ixs = np.arange(data_copy.shape[0])
-    interp = interp1d(ixs[not_nan],data_copy[not_nan])
+    not_nan = np.isfinite(data_copy) # a relic from interpolation
     
     nan_pos = np.where(~not_nan)[0]
     fixes = {}
         
-    filled_data = interp(ixs)
     for i in range(len(nan_pos)+1):
         if i==0:
             sig = np.diff(data_copy[:nan_pos[0]],3)
@@ -221,8 +278,16 @@ def fix2(data):
 
     return data_copy,fixes
     
-    
+ 
+#%% Best Version
+
 def betweenNan2(L1,L2,l):
+    """
+    so far has proved to be the best between NaN checker, it takes the
+    normalized cross covariance between L1 and L2 derivatives which should
+    go to zero or below during a cycle slip, I need to work out the math behind
+    this though which should be kind of tough
+    """
     idx,val = [],[]
     nan_pos = np.where(np.isnan(L2))[0]
     for i in range(len(nan_pos)+1):
@@ -244,13 +309,19 @@ def betweenNan2(L1,L2,l):
         for i in range(len(td1)-l):
             v[i] = np.correlate((td1[i:i+l]-np.mean(td1[i:i+l]))/np.std(td1[i:i+l]),
                                 (td2[i:i+l]-np.mean(td2[i:i+l]))/np.std(td2[i:i+l]))
-            if(i>0 and v[i]-v[i-1]>10):
+            if(i>0 and v[i]-v[i-1]>.9*l ):
                 idx.append(i+offset)
                 val.append(int(td2[i-2]/2))
     return idx,val
         
     
 def fix3(L1,L2):
+    """
+    so far the best full D/C uses the cross covariance technique for between
+    NaNs and interpolation for NaNs. I still need to implement the floor and 
+    ceiling checker to determine which integer best corrects the data,
+    furthermore the math could use a little work.
+    """
 
     receiving_interval = np.where(np.isfinite(L2))[0]
     start = receiving_interval[0]
