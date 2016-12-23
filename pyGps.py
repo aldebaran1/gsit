@@ -10,6 +10,7 @@ smrak@bu.edu
 import numpy as np
 import math
 import pyRinex
+from scipy import signal
 from pandas import DataFrame
 from pymap3d.coordconv3d import ecef2geodetic,ecef2aer,aer2geodetic
 
@@ -101,11 +102,11 @@ def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False):
             TEC[r[0]:r[1]] = tec
     if (tec_err):
         return TEC, ERR
-    else:
+    else:       
         #TEC[idx]=tec_p
         return TEC 
         
-def getIntervals(L1, L2, P1, P2, maxgap=3,maxjump=1.5):
+def getIntervals(L1, L2, P1, P2, maxgap=3,maxjump=2):
     """
     Greg Starr
     scans through the phase tec of a satellite and determines where "good"
@@ -153,6 +154,7 @@ def getVerticalTEC(tec, el, h, Fout=False):
     vTEC = sTEC * F(el)
     """
     Re = 6371.0
+    h = h * 1000
     rc1 = (Re / (Re + h))
     vTEC =[]
     F = []
@@ -213,7 +215,7 @@ def getIonosphericPiercingPoints(rx_xyz, sv, obstimes, ipp_alt, navfn, cs='wsg84
     trajectory. You also have to specify a full path to th navigation data file.
     It returns IPP location in either WSG84 or AER coordinate system.
     """
-    
+    ipp_alt = ipp_alt * 1000
     navdata = pyRinex.readRinexNav(navfn)
     xyz = getSatXYZ(navdata, sv, obstimes)
     rec_lat, rec_lon, rec_alt = ecef2geodetic(rx_xyz[0], rx_xyz[1], rx_xyz[2])
@@ -235,6 +237,7 @@ def getIonosphericPiercingPoints(rx_xyz, sv, obstimes, ipp_alt, navfn, cs='wsg84
     
 def getAllIonosphericPP(data, navdata, obstimes, sv_list, header, ipp_alt):
     """
+    WTF?
     """
     r_new = []
     lonPP = []
@@ -254,8 +257,13 @@ def getAllIonosphericPP(data, navdata, obstimes, sv_list, header, ipp_alt):
         latPP.append(ipp_lat[0])
         
     
-    return lonPP, latPP    
+    return lonPP, latPP
 
+def tec2asiCorrelation(tec_ts, tec, asi_ts, intensity):
+    """
+    """
+    
+    
 def solveIter(mu,e):
     """__solvIter returns an iterative solution for Ek
     Mk = Ek - e sin(Ek)
@@ -359,7 +367,8 @@ def getSatXYZ(nav, sv, times):
         xyz[i,:] = (R[i,:,:].dot(rv[i,:]))
         
     return xyz
-
+    
+    
 def getGpsTime(dt):
     """_getGpsTime returns gps time (seconds since midnight Sat/Sun) for a datetime
     """
@@ -370,4 +379,58 @@ def getGpsTime(dt):
     total += dt.minute * 60
     total += dt.second
     return(total)
+
+def phaseDetrend(y, order):
+    """
+    Sebastijan Mrak
+    Raw phase data detrending using N-th polinom approximation function.
+    Detrended output is input data subtracted with polinom approximation.
+    Output is of the same length as input data 'y'. 
+    """
+    x = range(y.shape[0])
+    z = np.polyfit(x, y, order)
+    f = np.poly1d(z)
+    y_new = f(x)
+    y_d = y-y_new
+    return y_d
     
+def butter_hpf(highcut, fs, order):
+    """
+    Sebastijan Mrak
+    Design the Butterwoth response highpass filter with N-th order and 
+    3db cutoff frequency 'highcut' in Hz.
+    Output are the poles 'b' and zeroes 'a' of the filter
+    """
+    nyq = 0.5 * fs
+    high = highcut / nyq
+    b, a = signal.butter(order, high, btype='highpass', analog=False)
+    return b, a
+
+def scintHpf(y, fc, order=5):
+    """
+    Sebastijan Mrak
+    Filter the input data 'y' with desired HP filter.  
+    """
+    b, a = butter_hpf(fc, 1, order)
+    y_filt = signal.lfilter(b, a, y)
+    return y_filt
+
+def phaseScintillation(data, N):
+    """
+    Sebastijan Mrak
+    GNSS Phase scintillation index for the interval of the length 'N' samples
+    """
+    y = np.nan * np.zeros(data.shape[0]-N)
+    for i in range(data.shape[0] - N):
+        y[i] = np.std(data[i:i+N])
+    return y
+    
+def AmplitudeScintillation(data, N):
+    """
+    Sebastijan Mrak
+    GNSS Amplitude scintillation index for the interval of the length 'N' samples
+    """
+    y = np.nan * np.zeros(data.shape[0]-N)
+    for i in range(data.shape[0] - N):
+        y[i] = np.std(data[i:i+N] / np.mean(data[i:i+N]))
+    return y

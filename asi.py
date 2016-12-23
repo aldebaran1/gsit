@@ -174,6 +174,7 @@ def latlonProjection(ASIfolder, altitude, wl, ix):
                          (cfg_folder+'PKR_DASC_20110112_AZ_10deg.FITS',
                           cfg_folder+'PKR_DASC_20110112_EL_10deg.FITS'), 
                           altitude))
+    return g1
     xcoords = g1.__changecoords__('WGS84')
     latlim=[xcoords[:,0].min(), xcoords[:,0].max()]
     lonlim=[xcoords[:,1].min(), xcoords[:,1].max()]
@@ -194,7 +195,7 @@ def latlonProjection(ASIfolder, altitude, wl, ix):
     plt.imshow(aa.T, origin='lower')
 
 
-def getAllskyIntensityAER(ASIfolder, IPPaz, IPPel, altitude, interval, wl, obstimes, cfg_folder=None):
+def getAllSkyIntensityAER(ASIfolder, IPPaz, IPPel, altitude, interval, wl, obstimes, cfg_folder=None):
     """
     Sebastijan Mrak
     function getAllSkyIntensity returns the intensity of light in Rayleighs [R] at
@@ -233,8 +234,8 @@ def getAllskyIntensityAER(ASIfolder, IPPaz, IPPel, altitude, interval, wl, obsti
             continue
     idx = np.where((image_time >= start) & (image_time <= stop) )[0]
     dt = image_time[idx]
-    #Iopnospheric piercing points
 
+    #Iopnospheric piercing points
     IPPaz = IPPaz[dt_match]
     IPPel = IPPel[dt_match]
     #OK
@@ -252,48 +253,8 @@ def getAllskyIntensityAER(ASIfolder, IPPaz, IPPel, altitude, interval, wl, obsti
         data = data2D[:,i]
         intensity[i] = findMin(az, el, IPPaz[i], IPPel[i], data)
     return dt, intensity
-    
-def findMin(az, el, IPPaz, IPPel, data):
-    """
-    Sebastijan Mrak
-    Find the best approximation of the line of sight azimuth and elevation on the
-    all-sky image pixel. Return the value/intensity of the pixel
-    """
-    cut = 5
-    idx = np.where((az > IPPaz-cut) & (az < IPPaz+cut))[0]
-    data = data[idx]
-    el = el[idx]
-    az = az[idx]
-    ######################################################
-    idx = np.where((el > IPPel-cut) & (el < IPPel+cut))
-    data = data[idx]
-    el = el[idx]
-    az = az[idx]
-    ######################################################
-    az_diff = abs(az - IPPaz)
-    el_diff = abs(el - IPPel)
-    #####################################################
-    sum_diff = az_diff + el_diff
-    I = np.argmin(sum_diff)
-    
-    return data[I]
-    
-
-def plotPizzacut(az, el, data):
-    """
-    Plot the cut of the original AER all-sky image.
-    """
-    rel = 90-el
-    az = az%360
-    x = -rel * np.sin(np.radians(az))
-    y = rel * np.cos(np.radians(az))
-    grid_x, grid_y = np.mgrid[-90:90:3600j, -90:90:3600j]
-    grid_z = griddata(np.array([x,y]).T, data.T, 
-                      (grid_x, grid_y), method='linear')
-    plt.figure()
-    plt.imshow(grid_z.T, origin='lower')
         
-def getAllSkyIntensity(ASIfolder, IPPlat, IPPlon, obstimes, altitude, wl, cfg_folder=None):
+def getAllSkyIntensity(ASIfolder, IPPlat, IPPlon, altitude, interval, wl, obstimes, cfg_folder=None):
     """
     Sebastijan Mrak
     function getAllSkyIntensity returns the intensity of light in Rayleighs [R] at
@@ -312,15 +273,29 @@ def getAllSkyIntensity(ASIfolder, IPPlat, IPPlon, obstimes, altitude, wl, cfg_fo
     for image in flist558:
         fn_image = str(image)
         img_t = str(int(np.floor(float(fn_image[-15:-5]))))
-        image_time.append(str(datetime(2015, 10, 7, int(img_t[:-4]), 
-                                      int(img_t[-4:-2]), int(img_t[-2:]))))
-    #print image_time
+        image_time.append(datetime(2015, 10, 7, int(img_t[:-4]), 
+                                      int(img_t[-4:-2]), int(img_t[-2:])))
+    
+    image_time = np.array(image_time)
+    # Posix timelim format
+    timelim = str2posix(interval)
+    start = interval[0]+interval[1]
+    stop = interval[2]+interval[3]
+    start = datetime(int(interval[0][-4:]),int(interval[0][:-8]), int(interval[0][-7:-5]), 
+                     int(interval[1][:-6]),int(interval[1][-5:-3]), int(interval[1][-2:]))
+    stop = datetime(int(interval[2][-4:]), int(interval[2][:-8]), int(interval[2][-7:-5]), 
+                     int(interval[3][:-6]),int(interval[3][-5:-3]), int(interval[3][-2:]))
+    #Match image and IPP timestamps
     dt_match = []                                  
     for t in image_time:
         try:
             dt_match.append(int(np.where(obstimes == t)[0]))
         except:
             continue
+    idx = np.where((image_time >= start) & (image_time <= stop) )[0]
+    dt = image_time[idx]
+
+    #Iopnospheric piercing points
     ipp_lat = IPPlat[dt_match]
     ipp_lon = IPPlon[dt_match]
     
@@ -328,7 +303,7 @@ def getAllSkyIntensity(ASIfolder, IPPlat, IPPlon, obstimes, altitude, wl, cfg_fo
     g1 = GeoData.GeoData(readAllskyFITS,(flist558,
                          (cfg_folder+'PKR_DASC_20110112_AZ_10deg.FITS',
                          cfg_folder+'PKR_DASC_20110112_EL_10deg.FITS'), 
-                         altitude))
+                         altitude, timelim))
     xcoords = g1.__changecoords__('WGS84')
     latlim=[xcoords[:,0].min(), xcoords[:,0].max()]
     lonlim=[xcoords[:,1].min(), xcoords[:,1].max()]
@@ -336,7 +311,7 @@ def getAllSkyIntensity(ASIfolder, IPPlat, IPPlon, obstimes, altitude, wl, cfg_fo
     latvec = sp.linspace(latlim[0], latlim[1], N)
     lonvec = sp.linspace(lonlim[0], lonlim[1], N)
     [LATM,LONM] = sp.meshgrid(latvec,lonvec)
-
+    
     #Interpolate ASI to certain altitude
     newcoords = sp.column_stack((LATM.flatten(),LONM.flatten(),
                                  altitude*sp.ones(LONM.size)))    
@@ -358,7 +333,7 @@ def getAllSkyIntensity(ASIfolder, IPPlat, IPPlon, obstimes, altitude, wl, cfg_fo
         intensity.append(ASI_value)        
         
     
-    return image_time, intensity  
+    return dt, intensity  
     
 def writeASIntensity2csv(ASIfolder, CSVfname, IPPlat, IPPlon, obstimes, altitude, cfg_folder = None):
     """    
@@ -459,6 +434,46 @@ def readASIfromCSV(fname):
     asi = asi.astype(float)
     
     return t, asi
+    
+def findMin(az, el, IPPaz, IPPel, data):
+    """
+    Sebastijan Mrak
+    Find the best approximation of the line of sight azimuth and elevation on the
+    all-sky image pixel. Return the value/intensity of the pixel
+    """
+    cut = 5
+    idx = np.where((az > IPPaz-cut) & (az < IPPaz+cut))[0]
+    data = data[idx]
+    el = el[idx]
+    az = az[idx]
+    ######################################################
+    idx = np.where((el > IPPel-cut) & (el < IPPel+cut))
+    data = data[idx]
+    el = el[idx]
+    az = az[idx]
+    ######################################################
+    az_diff = abs(az - IPPaz)
+    el_diff = abs(el - IPPel)
+    #####################################################
+    sum_diff = az_diff + el_diff
+    I = np.argmin(sum_diff)
+    
+    return data[I]
+    
+
+def plotPizzacut(az, el, data):
+    """
+    Plot the cut of the original AER all-sky image.
+    """
+    rel = 90-el
+    az = az%360
+    x = -rel * np.sin(np.radians(az))
+    y = rel * np.cos(np.radians(az))
+    grid_x, grid_y = np.mgrid[-90:90:3600j, -90:90:3600j]
+    grid_z = griddata(np.array([x,y]).T, data.T, 
+                      (grid_x, grid_y), method='linear')
+    plt.figure()
+    plt.imshow(grid_z.T, origin='lower')
     
 def str2posix(timelist):
     """ This will take a list of strings with the date along with a start and
