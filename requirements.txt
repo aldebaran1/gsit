@@ -1,0 +1,7 @@
+setuptools
+python-dateutil
+pytz
+numpy
+astropy
+scipy
+matplotlib

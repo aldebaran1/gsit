@@ -7,17 +7,18 @@ Created on Fri Nov 25 13:17:17 2016
 """
 
 import numpy as np
-import plotoptics
+#import plotoptics
 import datetime
-import asi
-import pyGps
+#import asi
+#import pyGps
 import pandas
 from pandas import read_hdf
+from gsit import asi, plotGps, pyGps, plotting, plotoptics, plotSatellite, magnetometer
 import yaml
-import plotGps
-import plotting
-import plotSatellite
-import magnetometer
+#import plotGps
+#import plotting
+#import plotSatellite
+#import magnetometer
 
 #Type paths to raw data
 
@@ -25,7 +26,7 @@ receiver = {2:'mah22800.h5', 3:'mah32800.h5', 4:'mah42800.h5', 5:'mah52800.h5',
             6:'mah62800.h5', 7:'mah72800.h5', 8:'mah82800.h5', 9:'mah92800.h5',
             13:'ma132800.h5'}
             
-yaml = {2:'mah22800.yaml', 3:'mah32800.yaml', 4:'mah42800.yaml', 5:'mah52800.yaml',
+yml = {2:'mah22800.yaml', 3:'mah32800.yaml', 4:'mah42800.yaml', 5:'mah52800.yaml',
             6:'mah62800.yaml', 7:'mah72800.yaml', 8:'mah82800.yaml', 9:'mah92800.yaml',
             13:'ma132800.yaml'}
 
@@ -103,13 +104,13 @@ def p3kg():
                                        '428', obstimes=obstimes, elevation=ipp[1])
     t6, el6, i6, el_out6 = asi.getASIKeogramIPP(asi_folder3, ipp[0], ipp_alt, timelim, 
                                        '630', obstimes=obstimes, elevation=ipp[1])
-    plotoptics.plot3Keogram(t5, t6, t4, el5, el6, el4, i5/1E3, i6/1E3, i4/1E3, 
+    plotoptics.plot3Keogram(t5, t6, t4, el5, el6, el4, i5/1E3, i6/i4, i4/1E3, 
                         ylim=[45,85], title1 = 'Green line, 588nm',
                         title2 = 'Red line, 588nm', title3 = 'Blue line, 588nm',
                         pcolorbar=True, ytick=[45, 55, 65, 75, 85], cmap='viridis',
-                        cbartick1=[0,2,4,6,8], cbartick2=[0,0.4,0.6,0.8,1],
+                        cbartick1=[0,2,4,6,8], cbartick2=[0,0.5,1,1.5,2,3],
                         cbartick3=[0,0.2,0.6,1, 1.4], 
-                        cbartitle1='kR', cbartitle2='kR', cbartitle3='kR',
+                        cbartitle1='kR', cbartitle2='', cbartitle3='kR',
                         xtick=[datetime.datetime(2015, 10, 7, 6, 10, 0), 
                                datetime.datetime(2015, 10, 7, 6, 15, 0),
                                datetime.datetime(2015, 10, 7, 6, 20, 0),
@@ -345,6 +346,7 @@ def tec_keogram_intensity3():
                       datetime.datetime(2015, 10, 7, 6, 40, 0)])
     
 def tec_keogram_intensity5():
+    N_roti = 100
     aer = pyGps.getSatellitePosition(np.asarray(rx_xyz), sv, obstimes, navfname, cs='aer')
     L1 = np.array(data['L1', sv, :, 'data'])
     L2 = np.array(data['L2', sv, :, 'data'])
@@ -356,8 +358,8 @@ def tec_keogram_intensity5():
     vTECp = pyGps.getVerticalTEC(sTECp, aer[1], 130)
     tec_norm = vTECp - vTECp[np.isfinite(vTECp[0:1000])].min()
     # Rate of TEC Index
-    roti = pyGps.getROTI(vTECp, 10)
-    roti_t = obstimes[0:-10]
+    roti = pyGps.getROTI(vTECp, N_roti)
+    roti_t = obstimes[0:-N_roti]
     #ASI Intensity data
     # Piercing point for all-sky data 
     aer = pyGps.getIonosphericPiercingPoints(rx_xyz, sv, obstimes, ipp_alt, navfname, cs='aer')
@@ -438,7 +440,7 @@ def plotGlobalMap():
 if __name__ == '__main__':
     #pkg()
     #p2kg()
-    #p3kg()
+    p3kg()
     #p4kg()
     #pInt()
     #tec()
@@ -446,4 +448,4 @@ if __name__ == '__main__':
     #tec_keogram_intensity5()
     #plotGlobalMap()
     #plotObservationDay()
-    phaseScintillation()
+    #phaseScintillation()
