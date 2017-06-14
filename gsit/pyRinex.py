@@ -16,6 +16,7 @@ from io import BytesIO
 from os.path import getsize
 import yaml
 import glob
+from operator import add
 
 def writeRinexObsHeader2yaml(folder):
     """
@@ -55,46 +56,54 @@ def readRinexNav(rinex_nav_filename):
         #handle frame by frame
         sv = []; epoch=[]; raws=''
         while True:
-            headln = f.readline()
-            if not headln: break
-            #handle the header
-            sv.append(headln[:2])
-            year = int(headln[2:5])
-            if (80 <= year <= 99):
-                year+=1900
-            elif (year < 80): #good till year 2180
-                year+=2000
-                
-            epoch.append(datetime(year = year,
-                                  month       = int(headln[5:8]),
-                                  day         = int(headln[8:11]),
-                                  hour        = int(headln[11:14]),
-                                  minute      = int(headln[14:17]),
-                                  second      = int(headln[17:20]),
-                                  microsecond = int(headln[21])*100000))
-            """
-            now get the data.
-            Use rstrip() to chomp newlines consistently on Windows and Python 2.7/3.4
-            Specifically [:-1] doesn't work consistently as .rstrip() does here.
-            """
-            raw = (headln[22:].rstrip() +
-                   ''.join(f.readline()[startcol:].rstrip() for _ in range(nline-1))
-                   +f.readline()[startcol:40].rstrip())
-
-            raws += raw + '\n'
-
-    raws = raws.replace('D','E')
-
-    strio = BytesIO(raws.encode())
-    darr = np.genfromtxt(strio,delimiter=nfloat)
-    nav= DataFrame(darr, epoch,
-               ['SVclockBias','SVclockDrift','SVclockDriftRate','IODE',
-                'Crs','DeltaN','M0','Cuc','Eccentricity','Cus','sqrtA','TimeEph',
-                'Cic','OMEGA','CIS','Io','Crc','omega','OMEGA DOT','IDOT',
-                'CodesL2','GPSWeek','L2Pflag','SVacc','SVhealth','TGD','IODC',
-                'TransTime','FitIntvl'])
-    nav['sv'] = Series(np.asarray(sv,int), index=nav.index)
-    #print (type(nav))
+                headln = f.readline()
+                if not headln: break
+                #handle the header
+                sv.append(headln[:2])
+                year = int(headln[2:5])
+                if (80 <= year <= 99):
+                    year+=1900
+                elif (year < 80): #good till year 2180
+                    year+=2000
+                    
+                epoch.append(datetime(year = year,
+                                      month       = int(headln[5:8]),
+                                      day         = int(headln[8:11]),
+                                      hour        = int(headln[11:14]),
+                                      minute      = int(headln[14:17]),
+                                      second      = int(headln[17:20]),
+                                      microsecond = int(headln[21])*100000))
+                """
+                now get the data.
+                Use rstrip() to chomp newlines consistently on Windows and Python 2.7/3.4
+                Specifically [:-1] doesn't work consistently as .rstrip() does here.
+                """
+                raw = (headln[22:].rstrip() +
+                       ' '.join(f.readline()[startcol:].rstrip() for _ in range(nline-1))
+                       +f.readline()[startcol:40].rstrip())
+                raws += raw + '\n'
+                #print (raws)
+        #print (raws)
+        raws = raws.replace('D', 'E')
+        raws = raws.replace(' -', '-')
+        raws = raws.replace('  ', ' ')
+        aa = raws.split('\n')
+        #print (type(aa))
+        for i in range(len(aa)):
+            if len(aa[i]) == 532:
+                aa[i] = aa[i] +'0.000000000000E+00'
+        strio = BytesIO('\n'.join(aa).encode())
+        darr = np.genfromtxt(strio,delimiter=nfloat)
+        nav= DataFrame(darr, epoch,
+                   ['SVclockBias','SVclockDrift','SVclockDriftRate','IODE',
+                    'Crs','DeltaN','M0','Cuc',
+                    'Eccentricity','Cus','sqrtA','TimeEph',
+                    'Cic','OMEGA','CIS','Io',
+                    'Crc','omega','OMEGA DOT','IDOT',
+                    'CodesL2','GPSWeek','L2Pflag','SVacc',
+                    'SVhealth','TGD','IODC', 'TransTime', 
+                    'FitIntvl'])
+        nav['sv'] = Series(np.asarray(sv,int), index=nav.index)
 
     return nav
     
@@ -193,6 +202,7 @@ def scan(lines):
     obstimes=[]
     sats=[]
     svset=set()
+    indicator=[]
     i = eoh + 1
     while True:
         if not lines[i]: break
@@ -201,19 +211,26 @@ def scan(lines):
             headlines.append(i)
             obstimes.append(_obstime([lines[i][1:3],lines[i][4:6],
                                    lines[i][7:9],lines[i][10:12],
-                                   lines[i][13:15],lines[i][16:26]]))
+                                   lines[i][13:15],lines[i][16:18],lines[i][19:25]]))
             numsvs = int(lines[i][30:32])
             if(numsvs > 12):
-                sp=[]
+                indicator=[]
+                sat_numbers=[]
                 for s in range(numsvs):
-                     	if s == 12 : 
-                          i += 1
-                          sp.append(int(lines[i][33+(s%12)*3:35+(s%12)*3]))
-                   
-                sats.append(sp)
+                    if (s == 12):
+                        i += 1
+                    line = lines[i][32:]
+                    indicator.append(line[0+(s%12)*3])
+                    sat_numbers.append(int(lines[i][33+(s%12)*3:35+(s%12)*3]))
+                indicator1 = [w.replace('R', '32') for w in indicator]
+                indicator1 = [w.replace('G', '0') for w in indicator1]
+                constant = np.array(list(map(int, indicator1)))
+                sat_numbers = np.array(sat_numbers)
+                out = constant + sat_numbers
+                sats.append(out)
             else:
                 sats.append([int(lines[i][33+s*3:35+s*3]) for s in range(numsvs)])
-        
+
             i+=numsvs*int(np.ceil(header['# / TYPES OF OBSERV'][0]/5))+1
         else:
             #there was a comment or some header info
@@ -241,7 +258,7 @@ def _obstime(fol):
     return datetime(year = year, month = int(fol[1]), day = int(fol[2]),
                     hour = int(fol[3]), minute = int(fol[4]),
                     second = int(float(fol[5])),
-                    microsecond = int(float(fol[5]) % 1) * 100000
+                    microsecond = int(fol[6])
                     )
 
 def _block2df(block,obstypes,svnames,svnum):
