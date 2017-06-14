@@ -191,12 +191,15 @@ def scan(lines):
             header[line[60:].strip()] = line[:60].strip()
         else:
             header[line[60:].strip()] += " "+line[:60].strip()
-    verRinex = float(header['RINEX VERSION / TYPE'].split()[0])
-    header['APPROX POSITION XYZ'] = [float(i) for i in header[
-        'APPROX POSITION XYZ'].split()]
-    header['# / TYPES OF OBSERV'] = header['# / TYPES OF OBSERV'].split()
-    header['# / TYPES OF OBSERV'][0] = int(header['# / TYPES OF OBSERV'][0])
-    header['INTERVAL'] = float(header['INTERVAL'])
+    try:
+        verRinex = float(header['RINEX VERSION / TYPE'].split()[0])
+        header['APPROX POSITION XYZ'] = [float(i) for i in header[
+            'APPROX POSITION XYZ'].split()]
+        header['# / TYPES OF OBSERV'] = header['# / TYPES OF OBSERV'].split()
+        header['# / TYPES OF OBSERV'][0] = int(header['# / TYPES OF OBSERV'][0])
+        header['INTERVAL'] = float(header['INTERVAL'])
+    except:
+        pass
 
     headlines=[]
     obstimes=[]
