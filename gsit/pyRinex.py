@@ -82,7 +82,7 @@ def readRinexNav(rinex_nav_filename):
                        ' '.join(f.readline()[startcol:].rstrip() for _ in range(nline-1))
                        +f.readline()[startcol:40].rstrip())
                 raws += raw + '\n'
-                #print (raws)
+
         #print (raws)
         raws = raws.replace('D', 'E')
         raws = raws.replace(' -', '-')
