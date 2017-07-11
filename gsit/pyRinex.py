@@ -18,7 +18,20 @@ import yaml
 import glob
 from operator import add
 
-def writeRinexObsHeader2yaml(folder):
+def writeRinexObsHeader2yaml(fname):
+    """
+    Sebastijan Mrak
+    Function takes the folder with Rinex Obseravation files and finds all files
+    with '.15o' extension. Than it iterates through all filaes to find header and
+    save it to yaml file with the same name.
+    """
+    header = readRinexObsHeader(fname)
+    filename = splitext(expanduser(fname))
+    yaml_fn = filename[0] + '.yaml'
+    with open(yaml_fn, 'w') as outfile:
+        yaml.dump(header, outfile, default_flow_style=True) 
+
+def writeRinexObsHeaders2yaml(folder):
     """
     Sebastijan Mrak
     Function takes the folder with Rinex Obseravation files and finds all files
@@ -33,6 +46,7 @@ def writeRinexObsHeader2yaml(folder):
         header = readRinexObsHeader(doc)
         filename = splitext(expanduser(doc))
         yaml_fn = filename[0] + '.yaml'
+        print ('converted: ', yaml_fn)
         with open(yaml_fn, 'w') as outfile:
             yaml.dump(header, outfile, default_flow_style=True) 
         
@@ -132,7 +146,7 @@ def readRinexObsHeader(obs_file_name):
     with open(obs_file_name, 'r') as f:
         lines = f.read().splitlines(True)
         lines.append('')
-        header,version,headlines,obstimes,sats,svset = scan(lines)
+        header = scanHeader(lines)
         
     return header
     
@@ -159,6 +173,28 @@ def readRinexObsHdf(hdf5_file_name):
     data = read_hdf(hdf5_file_name,key='data')
     
     return header, data, list(svset), obstimes           
+
+def scanHeader(lines):
+    header={}        
+    eoh=0
+    for i,line in enumerate(lines):
+        if "END OF HEADER" in line:
+            eoh=i
+            break
+        if line[60:].strip() not in header:
+            header[line[60:].strip()] = line[:60].strip()
+        else:
+            header[line[60:].strip()] += " "+line[:60].strip()
+    try:
+        verRinex = float(header['RINEX VERSION / TYPE'].split()[0])
+        header['APPROX POSITION XYZ'] = [float(i) for i in header[
+            'APPROX POSITION XYZ'].split()]
+        header['# / TYPES OF OBSERV'] = header['# / TYPES OF OBSERV'].split()
+        header['# / TYPES OF OBSERV'][0] = int(header['# / TYPES OF OBSERV'][0])
+        header['INTERVAL'] = float(header['INTERVAL'])
+    except:
+        pass
+    return header
 
 def scan(lines):
     """
@@ -209,6 +245,10 @@ def scan(lines):
     i = eoh + 1
     while True:
         if not lines[i]: break
+        if len(lines[i]) < 28:
+            i+=1
+#            print ('In the loop')
+#        print (i, len(lines[i]))
         if not int(lines[i][28]):
             #no flag or flag=0
             headlines.append(i)
@@ -220,12 +260,16 @@ def scan(lines):
                 indicator=[]
                 sat_numbers=[]
                 for s in range(numsvs):
-                    if (s == 12):
+                    if (s == 12 or s==24):
                         i += 1
                     line = lines[i][32:]
                     indicator.append(line[0+(s%12)*3])
                     sat_numbers.append(int(lines[i][33+(s%12)*3:35+(s%12)*3]))
-                indicator1 = [w.replace('R', '32') for w in indicator]
+                # GALILLEO sat enumerated 60-
+                indicator1 = [w.replace('E', '60') for w in indicator]
+                # GLONASS satellites enumerated 32-
+                indicator1 = [w.replace('R', '32') for w in indicator1]
+                # GPS satellites enumerated 0-32
                 indicator1 = [w.replace('G', '0') for w in indicator1]
                 constant = np.array(list(map(int, indicator1)))
                 sat_numbers = np.array(sat_numbers)
@@ -244,7 +288,7 @@ def scan(lines):
             i+=skip+1
     for sv in sats:
         svset = svset.union(set(sv))
-
+    print ('Finished with scanning lines')
     return header,verRinex,headlines,obstimes,sats,svset
 
 def _obstime(fol):
