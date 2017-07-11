@@ -69,7 +69,7 @@ def getPSlantTEC(L1, L2, units = 'cycle'):
         
     return sTEC
 
-def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False):
+def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False, intervals=None):
     """
     Greg Starr
     Function returns a phase corrected TEC, following a paper by Coco el al:
@@ -82,6 +82,7 @@ def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False):
     """
     #Get intervals between nans and/or cycle slips    
     idx, ranges = getIntervals(L1, L2, P1, P2)
+#    print ('Intervals between cycle slips ', ranges)
     ERR = np.nan * np.zeros(len(L1))
     TEC = np.nan * np.zeros(len(L1))
     for r in ranges:
@@ -102,6 +103,8 @@ def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False):
             TEC[r[0]:r[1]] = tec
     if (tec_err):
         return TEC, ERR
+    elif intervals:
+        return TEC, ranges
     else:       
         #TEC[idx]=tec_p
         return TEC 
@@ -126,12 +129,12 @@ def getIntervals(L1, L2, P1, P2, maxgap=3,maxjump=2):
     r = r[idx]
     intervals=[]
     if len(r)==0:
-        return intervals
+        return idx, intervals
     phase_tec=2.85E9*(L1/f1-L2/f2)
     beginning=r[0]
     last=r[0]
     for i in r[1:]:
-        if i-last>maxgap or abs(phase_tec[i]-phase_tec[last])>maxjump:
+        if (i-last>maxgap) or (abs(phase_tec[i]-phase_tec[last])>maxjump):
             intervals.append((beginning,last))
             beginning=i
         last=i
@@ -436,17 +439,70 @@ def AmplitudeScintillation(data, N):
         y[i] = np.std(data[i:i+N] / np.mean(data[i:i+N]))
     return y
     
-def phaseScintillation(data, fc=0.1, filt_order=8, polyfit_order=9):
+def phaseScintillation(data, fc=0.1, filt_order=6, polyfit_order=3, skip=20):
     """
     Sebastijan Mrak
+    Standard pocedure to obtain detrended carrier phase scintillation. Input 
+    is a list of carrier phase measurements, than this list goes to a process of
+    polynominal detrending and finaly detrended data is high-pass filterd (IIR).
     """
     L = np.nan*np.zeros(data.shape[0])
     idx = np.where(np.isfinite(data))[0]
     L1phi = data[idx]
     L1_d = phaseDetrend(L1phi, polyfit_order)
     Y = scintHpf(L1_d, fc, filt_order)
-    L[idx] = Y
+    
+    L[idx[skip:]] = Y[skip:]
     return L
 
 def datetime2posix(dtime):
+    """
+    Convert an input list of datetime format timestamp to posix timestamp
+    """
     return [i.replace(tzinfo=datetime.timezone.utc).timestamp() for i in dtime]
+
+def cycleSlipDetect(y, cslim=50, csmargin=0.05):
+    """
+    Cycle slip detection amgorithm that uses a 3rd order difference methodology to
+    supress random flustuations and magnifies the cycle slip. Output is a list of
+    indexes of cycle slips and an estimate of cycle slip value at each index
+    """
+    l_diff_11 = np.diff(y) # Diff 1st order
+    l_diff_11 = np.hstack((np.nan, l_diff_11))
+    l_diff_21 = np.diff(l_diff_11) # Diff 2nd order
+    l_diff_21 = np.hstack((np.nan, l_diff_21))
+    l_diff_31 = np.diff(l_diff_21) # Diff 3rd order 
+    l_diff_31 = np.hstack((l_diff_31, np.nan))
+    
+    ll_1 = np.round(np.nan_to_num(l_diff_31))
+    
+    cs_ix1= []
+    cs_value1 = []
+    for i in range(len(ll_1) - 2):
+        if abs(ll_1[i+1]) > cslim:
+            current_value = np.round(ll_1[i+1])
+            previous_value = np.round(ll_1[i])
+            next_value = np.round(ll_1[i+2])
+            #Even valued samples
+            if (current_value % 2) == 0:
+                
+                if ( 
+                    (abs(current_value - np.round(-2 * next_value)) < current_value*csmargin) or 
+                    (abs(current_value - np.round(-2 * previous_value)) < current_value*csmargin)
+                    ):
+                    cs_ix1.append(i+1)
+                    cs_value1.append(- (l_diff_31[i+1])/2)
+            #Odd values samples
+            else: 
+                if (
+                    (abs(current_value == np.round(-2 * next_value+1)) < current_value*csmargin) or 
+                    (abs(current_value == np.round(-2 * next_value-1)) < current_value*csmargin) or 
+                    (abs(current_value == np.round(-2 * previous_value+1)) < current_value*csmargin) or 
+                    (abs(current_value == np.round(-2 * previous_value-1)) < current_value*csmargin)
+                    ):
+                    cs_ix1.append(i+1)
+                    cs_value1.append(- (l_diff_31[i+1])/2)
+
+    print (cs_ix1, cs_value1)
+    print (y[cs_ix1])
+    return cs_ix1, cs_value1
