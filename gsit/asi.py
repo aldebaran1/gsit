@@ -207,7 +207,7 @@ def getAllSkyIntensityAER(ASIfolder, IPPaz, IPPel, altitude, interval, wl, obsti
     of the image.
     """
     if cfg_folder == None:
-        cfg_folder = '/home/smrak/Documents/TheMahali/asi_cfg/'
+        cfg_folder = '/home/smrak/Documents/TheMahali/data/asi_cfg/'
     wlstr ='*_0'+ wl +'_*.FITS'
     flist558 = sorted(glob.glob(ASIfolder+wlstr))
     image_time = []
@@ -266,7 +266,7 @@ def getAllSkyIntensity(ASIfolder, IPPlat, IPPlon, altitude, interval, wl, obstim
     corresponding timestamps of the image.
     """
     if cfg_folder == None:
-        cfg_folder = '/home/smrak/Documents/TheMahali/asi_cfg/'
+        cfg_folder = '/home/smrak/Documents/TheMahali/data/asi_cfg/'
     wlstr ='*_0'+ wl +'_*.FITS'
     flist558 = sorted(glob.glob(ASIfolder+wlstr))
     image_time = []
