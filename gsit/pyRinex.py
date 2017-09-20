@@ -14,6 +14,7 @@ from pandas.io.pytables import read_hdf
 from os.path import splitext,expanduser
 from io import BytesIO
 from os.path import getsize
+import os
 import yaml
 import glob
 from operator import add
@@ -46,9 +47,12 @@ def writeRinexObsHeaders2yaml(folder):
         header = readRinexObsHeader(doc)
         filename = splitext(expanduser(doc))
         yaml_fn = filename[0] + '.yaml'
-        print ('converted: ', yaml_fn)
-        with open(yaml_fn, 'w') as outfile:
-            yaml.dump(header, outfile, default_flow_style=True) 
+        if not os.path.isfile(yaml_fn):
+            print ('converted: ', yaml_fn)
+            with open(yaml_fn, 'w') as outfile:
+                yaml.dump(header, outfile, default_flow_style=True)
+        else:
+            print ('Flie exist: ', yaml_fn)
         
 
 def readRinexNav(rinex_nav_filename):
