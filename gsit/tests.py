@@ -25,16 +25,16 @@ yml = {2:'mah22800.yaml', 3:'mah32800.yaml', 4:'mah42800.yaml', 5:'mah52800.yaml
             6:'mah62800.yaml', 7:'mah72800.yaml', 8:'mah82800.yaml', 9:'mah92800.yaml',
             13:'ma132800.yaml'}
 
-fn = '/home/smrak/Documents/TheMahali/rinex/'
+fn = '/home/smrak/Documents/TheMahali/data/rinex/'
 navfname = '/home/smrak/Documents/TheMahali/gnss/gps/brdc2800.15n'
 skip = 500
-sv = 9
+#sv = 9
 green_alt = 120
 red_alt = 250
 blue_alt = 90
 #rx = 8
 dt = 17
-def writePlottingHDF():
+def writePlottingHDF(sv=9):
     h5file = h5py.File('/home/smrak/Documents/TheMahali/plotting1/sv9.h5', 'w')
     data = read_hdf(fn+ str(receiver.get(8)))
     obstimes = np.array((data.major_axis))
@@ -59,6 +59,7 @@ def writePlottingHDF():
         
     #    posixtimes = pyGps.datetime2posix(obstimes)
         ipp_green = pyGps.getIonosphericPiercingPoints(rx_xyz, sv, obstimes, green_alt, navfname, cs='wsg84')
+        
         ipp_red = pyGps.getIonosphericPiercingPoints(rx_xyz, sv, obstimes, red_alt, navfname, cs='wsg84')
         ipp_blue = pyGps.getIonosphericPiercingPoints(rx_xyz, sv, obstimes, blue_alt, navfname, cs='wsg84')
         
@@ -118,8 +119,33 @@ def writePlottingHDF2():
             green.create_dataset('lon', data=ipp_green[1])
     h5file.close()
     
+#data = read_hdf(fn+ str(receiver.get(8)))
+
+def wrtiteCollocatedSV2HDF(rx=8):
+    stream = yaml.load(open(fn + str(yml.get(rx)), 'r'))
+    rx_xyz = stream.get('APPROX POSITION XYZ')
+    data = read_hdf('/home/smrak/Documents/TheMahali/data/rinex/mah82800.h5')
+    obstimes = np.array((data.major_axis))
+    obstimes = pandas.to_datetime(obstimes) - datetime.timedelta(seconds=dt)
+    posixtimes = pyGps.datetime2posix(obstimes)
+    dumb = data['L1', :,1, 'data']
+    svlist = dumb.axes
+    h5file = h5py.File('/home/smrak/Documents/TheMahali/plotting1/rx8.h5', 'w')
+    h5file.create_dataset('time', data=posixtimes)
+    for sv in svlist[0]:
+        lli2 = data['L2', sv,:, 'lli']
+        idx = np.where(lli2%2)[0]
+        lli = np.zeros(lli2.shape[0])
+        lli[idx] = 1
+        aer = pyGps.getIonosphericPiercingPoints(rx_xyz, sv, obstimes, 0, navfname, cs='aer')
+        gr = h5file.create_group(str(sv))
+        gr.create_dataset('az', data=aer[0])
+        gr.create_dataset('el', data=aer[1])
+        gr.create_dataset('lli', data=lli)
+    h5file.close()
+wrtiteCollocatedSV2HDF()
 #writePlottingHDF2()
-writePlottingHDF()
+#writePlottingHDF()
 #f = h5py.File('/home/smrak/Documents/TheMahali/plotting1/single.h5', 'r')
 #for name in f:
 #    print (name)

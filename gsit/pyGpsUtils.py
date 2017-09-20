@@ -100,6 +100,25 @@ def plotGpsMapTrajectory(lat=[], lon=[], rx=None, labels=None,
                 x,y = m(rx[1], rx[0])
                 m.scatter(x, y, marker='o', color=color, s=ms)
     return ax, m
+
+def plotScatterTEC(lat=[], lon=[], z=[], latlim=[41, 44], ms=10, color='k',
+                         lonlim=[-74, -69], center=[42.36, -71.06],
+                         parallels=[42,44], meridians = [-73, -70, -67],
+                         ax=None, m=None):
+    if ax is None:
+        (fig,ax) = plt.subplots(1,1,facecolor='w')
+        m = Basemap(llcrnrlat=latlim[0],urcrnrlat=latlim[1],
+                    llcrnrlon=lonlim[0],urcrnrlon=lonlim[1],
+                    projection='merc', resolution='i', ax=ax)
+        
+        m.drawparallels(parallels,labels=[False, True, True, True], linewidth=1)
+        m.drawmeridians(meridians,labels=[True,True,False,True], linewidth=1)
+        
+        if len(lat) > 0 and len(lon) > 0:
+            x,y = m(lon, lat)
+            m.scatter(x, y, marker='o', color=color, s=ms)
+            
+    return ax, m
 #    plt.tight_layout()
 #    plt.legend(bbox_to_anchor=(1.1, 1.1))
 #plotGpsMapTrajectory()

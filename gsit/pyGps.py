@@ -10,9 +10,10 @@ smrak@bu.edu
 import numpy as np
 import math, time, datetime
 from gsit import pyRinex
-from scipy import signal
+from scipy import signal, interpolate
 from pandas import DataFrame
 from pymap3d.coordconv3d import ecef2geodetic,ecef2aer,aer2geodetic
+import h5py
 
 #constnats for GPS
 f1 = 1575420000
@@ -69,7 +70,8 @@ def getPSlantTEC(L1, L2, units = 'cycle'):
         
     return sTEC
 
-def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False, intervals=None):
+def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False, 
+                    intervals=None, fN = None, maxgap=3, maxjump=2):
     """
     Greg Starr
     Function returns a phase corrected TEC, following a paper by Coco el al:
@@ -81,17 +83,26 @@ def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False, intervals=None)
     at this place.    
     """
     #Get intervals between nans and/or cycle slips    
-    idx, ranges = getIntervals(L1, L2, P1, P2)
+    idx, ranges = getIntervals(L1, L2, P1, P2, maxgap=maxgap, maxjump=maxjump)
 #    print ('Intervals between cycle slips ', ranges)
     ERR = np.nan * np.zeros(len(L1))
     TEC = np.nan * np.zeros(len(L1))
     for r in ranges:
         if (r[1] - r[0]) > 1:
-            range_tec = ((f1**2 * f2**2) / (f1**2 - f2**2)) * (P2[r[0] : r[1]] - 
+            if fN is None:
+                f1 = 1575420000
+                f2 = 1227600000
+                range_tec = ((f1**2 * f2**2) / (f1**2 - f2**2)) * (P2[r[0] : r[1]] - 
                                           P1[r[0] : r[1]]) /40.3 / pow(10, 16)
-            phase_tec = ((f1**2 * f2**2) / (f1**2 - f2**2)) * (c0/40.3) * \
+                phase_tec = ((f1**2 * f2**2) / (f1**2 - f2**2)) * (c0/40.3) * \
                          (L1[r[0] : r[1]] / f1 - L2[r[0] : r[1]] / f2) / pow(10, 16)
-            
+            else: 
+                f1 = (1602 + fN*0.5625) * 1000000
+                f2 = (1246 + fN*0.4375) * 1000000
+                range_tec = ((f1**2 * f2**2) / (f1**2 - f2**2)) * (P2[r[0] : r[1]] - 
+                                          P1[r[0] : r[1]]) /40.3 / pow(10, 16)
+                phase_tec = ((f1**2 * f2**2) / (f1**2 - f2**2)) * (c0/40.3) * \
+                         (L1[r[0] : r[1]] / f1 - L2[r[0] : r[1]] / f2) / pow(10, 16)
             tec_difference = np.array(sorted(phase_tec-range_tec))
             
             tec_difference = tec_difference[np.isfinite(tec_difference)]
@@ -108,6 +119,21 @@ def getPhaseCorrTEC(L1, L2, P1, P2, satbias=None, tec_err=False, intervals=None)
     else:       
         #TEC[idx]=tec_p
         return TEC 
+
+def getPhaseCorrTECGLONASS(L1,L2,P1,P2):
+    range_tec = ((f1**2 * f2**2) / (f1**2 - f2**2)) * (P2 - P1) / 40.3 / pow(10, 16)
+    phase_tec = ((f1**2 * f2**2) / (f1**2 - f2**2)) * (c0/40.3) * (L1 / f1 - L2 / f2) / pow(10, 16)
+    
+    tec_difference = np.array(sorted(phase_tec-range_tec))
+            
+    tec_difference = tec_difference[np.isfinite(tec_difference)]
+    median_difference = tec_difference[int(len(tec_difference)/2)]
+    difference_width = tec_difference[int(len(tec_difference)*.75)]-tec_difference[int(len(tec_difference)*.25)]
+    median_error = difference_width/np.sqrt(len(tec_difference))
+    tec = phase_tec - median_difference
+    
+    return tec
+                
         
 def getIntervals(L1, L2, P1, P2, maxgap=3,maxjump=2):
     """
@@ -209,7 +235,7 @@ def getSatellitePosition(rx_xyz, sv, obstimes, navfn, cs = 'wsg84'):
         print ('Wrong frame of reference. Type "wsg84" or "aer".')
         return 0;
     
-def getIonosphericPiercingPoints(rx_xyz, sv, obstimes, ipp_alt, navfn, cs='wsg84'):
+def getIonosphericPiercingPoints(rx_xyz, sv, obstimes, ipp_alt, navfn, cs='wsg84', sattype='G'):
     """
     Sebastijan Mrak
     Function returns a list of Ionospheric Piersing Point (IPP) trajectory in WSG84
@@ -218,23 +244,53 @@ def getIonosphericPiercingPoints(rx_xyz, sv, obstimes, ipp_alt, navfn, cs='wsg84
     trajectory. You also have to specify a full path to th navigation data file.
     It returns IPP location in either WSG84 or AER coordinate system.
     """
-    ipp_alt = ipp_alt * 1000
-    navdata = pyRinex.readRinexNav(navfn)
-    xyz = getSatXYZ(navdata, sv, obstimes)
-    rec_lat, rec_lon, rec_alt = ecef2geodetic(rx_xyz[0], rx_xyz[1], rx_xyz[2])
-    az,el,r = ecef2aer(xyz[:,0],xyz[:,1],xyz[:,2],rec_lat, rec_lon, rec_alt)
-    r_new = []    
-    for i in range(len(el)):
-        if el[i] > 0:
-            r_new.append(ipp_alt / math.sin(math.radians(el[i])))
-        else:
-            r_new.append(np.nan)
-    ipp_lat, ipp_lon, ipp_alt = aer2geodetic(az, el, r_new, rec_lat, rec_lon, rec_alt)    
     
+    ipp_alt = ipp_alt * 1000
+    rec_lat, rec_lon, rec_alt = ecef2geodetic(rx_xyz[0], rx_xyz[1], rx_xyz[2])
+    
+    if sattype == 'G':
+        navdata = pyRinex.readRinexNav(navfn)
+        xyz = getSatXYZ(navdata, sv, obstimes)
+        az,el,r = ecef2aer(xyz[:,0],xyz[:,1],xyz[:,2],rec_lat, rec_lon, rec_alt)
+        y_out = np.array([az, el, r])
+        r_new = []    
+        for i in range(len(el)):
+            if el[i] > 0:
+                r_new.append(ipp_alt / math.sin(math.radians(el[i])))
+            else:
+                r_new.append(np.nan)
+        output = np.array(aer2geodetic(az, el, r_new, rec_lat, rec_lon, rec_alt))
+        
+    elif sattype == 'R':
+        f = h5py.File(navfn, 'r')
+        sat_xyz = np.array(f[str(sv)+'/data'])[:,0:3]
+        sat_time = np.array(f[str(sv)+'/obstimes'])
+        az, el, r = ecef2aer(sat_xyz[:,0]*1E3, sat_xyz[:,1]*1E3, sat_xyz[:,2]*1E3, rec_lat, rec_lon, rec_alt)
+        t = datetime2posix(obstimes)
+        y_out = []
+        
+        for y in [az, el, r]:
+            x_new = t
+            f = interpolate.interp1d(sat_time,y,kind='cubic')
+            y_new = f(x_new)
+            y_out.append(y_new)
+        y_out = np.array(y_out)
+        
+        r_new = []    
+        for i in range(y_out.shape[1]):
+            if y_out[1, i] > 0:
+                r_new.append(ipp_alt / math.sin(math.radians(y_out[1,i])))
+            else:
+                r_new.append(np.nan)
+        ipp_lat, ipp_lon, ipp_alt = aer2geodetic(y_out[0,:], y_out[1,:], r_new, rec_lat, rec_lon, rec_alt)
+        output = np.array(aer2geodetic(y_out[0,:], y_out[1,:], r_new, rec_lat, rec_lon, rec_alt))
+    else:
+        print ('Type in valid sattype initial. "G" for GPS and "R" for glonass')
+        
     if (cs == 'wsg84'):
-        return [ipp_lat, ipp_lon, ipp_alt]
+        return output
     elif (cs == 'aer'):
-        return [az, el, r]
+        return y_out
     else:
         print ('Enter either "wsg84" or "aer" as coordinate system. "wsg84" is default one.')
         
@@ -410,12 +466,12 @@ def butter_hpf(highcut, fs, order):
     b, a = signal.butter(order, high, btype='highpass', analog=False)
     return b, a
 
-def scintHpf(y, fc, order=5):
+def scintHpf(y, fc=0.1, order=5, fs=1):
     """
     Sebastijan Mrak
     Filter the input data 'y' with desired HP filter.  
     """
-    b, a = butter_hpf(fc, 1, order)
+    b, a = butter_hpf(fc, fs, order)
     y_filt = signal.lfilter(b, a, y)
     return y_filt
 
